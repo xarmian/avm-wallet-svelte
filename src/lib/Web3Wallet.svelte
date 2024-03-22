@@ -8,6 +8,7 @@
     export let indexerClient: Indexer | undefined = undefined;
     export let walletListClass: string = 'bg-gray-100 dark:bg-gray-600';
     export let showAuthButtons: boolean = false;
+    export let availableWallets: string[] = ['PeraWallet', 'DeflyWallet', 'Kibisis', 'Lute'];
 
     const closeWalletList = (event: any) => {
         if (!event.target.closest('.wallet-list')) {
@@ -41,7 +42,7 @@
     </button>
     {#if $showWalletList}
         <div class="walletListBox absolute right-0 w-72 z-50 {walletListClass}">
-            <WalletList showAuthButtons={showAuthButtons} />
+            <WalletList showAuthButtons={showAuthButtons} availableWallets={availableWallets} />
         </div>
     {/if}
 </div>

@@ -1,5 +1,6 @@
-/* Thank you to Algo Doggo for the great write-up on Stateless Authentication.
-   Code in this file use for authentication is based on the Stateless Authentication example
+/*
+   Thank you to Algo Doggo for the great write-up on Stateless Authentication.
+   Code in this file used for authentication is based on the Stateless Authentication example
    found here: https://developer.algorand.org/tutorials/stateless-session-management-with-the-pera-wallet/
 */
 
@@ -24,8 +25,8 @@ export interface Wallet {
   connect: () => Promise<WalletConnectionResult | null>;
   disconnect?: () => void;
   signTxns?: (txns: algosdk.Transaction[][]) => Promise<Uint8Array[]>;
-  signAndSendTxns?: (txns: algosdk.Transaction[][]) => Promise<boolean>;
-  authenticate?: (wallet: string) => void;
+  signAndSendTxns?: (txns: algosdk.Transaction[][], algodClient?: algosdk.Algodv2) => Promise<boolean>;
+  authenticate?: (wallet: string, algodClient?: algosdk.Algodv2) => void;
 }
 
 export interface WalletConnectionResult {
@@ -56,9 +57,11 @@ export const wallets: Wallet[] = [
       await peraConnect.connect();
       return await peraConnect.signTransactions(txns);
     },
-    signAndSendTxns: async (txns: algosdk.Transaction[][]) => {
+    signAndSendTxns: async (txns: algosdk.Transaction[][], algodClient?: algosdk.Algodv2) => {
       const providerStoreValue = get(ProviderStore);
-      const algodClient: algosdk.Algodv2 | undefined = providerStoreValue.algodClient;
+      if (!algodClient) {
+        algodClient = providerStoreValue.algodClient;
+      }
 
       if (!algodClient) {
         throw new Error("Algod client not available");
@@ -66,8 +69,8 @@ export const wallets: Wallet[] = [
       await peraConnect.connect();
       return await peraConnect.signAndSendTransactions(algodClient, txns);
     },
-    authenticate: async (wallet: string) => {
-      const authTx = await draftAuthTx({ wallet });
+    authenticate: async (wallet: string, algodClient?: algosdk.Algodv2) => {
+      const authTx = await draftAuthTx(wallet, algodClient);
 
       await peraConnect.connect();
 
@@ -116,18 +119,20 @@ export const wallets: Wallet[] = [
       await deflyConnect.connect();
       return await deflyConnect.signTransactions(txns);
     },
-    signAndSendTxns: async (txns: algosdk.Transaction[][]) => {
+    signAndSendTxns: async (txns: algosdk.Transaction[][], algodClient?: algosdk.Algodv2) => {
       const providerStoreValue = get(ProviderStore);
-      const algodClient: algosdk.Algodv2 | undefined = providerStoreValue.algodClient;
+      if (!algodClient) {
+        algodClient = providerStoreValue.algodClient;
+      }
 
-    if (!algodClient) {
+      if (!algodClient) {
         throw new Error("Algod client not available");
       }
       await deflyConnect.connect();
       return await deflyConnect.signAndSendTransactions(algodClient, txns);
     },
-    authenticate: async (wallet: string) => {
-      const authTx = await draftAuthTx({ wallet });
+    authenticate: async (wallet: string, algodClient?: algosdk.Algodv2) => {
+      const authTx = await draftAuthTx(wallet, algodClient);
 
       await deflyConnect.connect();
 
@@ -169,9 +174,11 @@ export const wallets: Wallet[] = [
       await kibisisConnect.connect();
       return await kibisisConnect.signTransactions(txns);
     },
-    signAndSendTxns: async (txns: algosdk.Transaction[][]): Promise<boolean> => {
+    signAndSendTxns: async (txns: algosdk.Transaction[][], algodClient?: algosdk.Algodv2) => {
       const providerStoreValue = get(ProviderStore);
-      const algodClient: algosdk.Algodv2 | undefined = providerStoreValue.algodClient;
+      if (!algodClient) {
+        algodClient = providerStoreValue.algodClient;
+      }
 
       if (!algodClient) {
         throw new Error("Algod client not available");
@@ -179,13 +186,8 @@ export const wallets: Wallet[] = [
       await kibisisConnect.connect();
       return await kibisisConnect.signAndSendTransactions(algodClient, txns);
     },
-    authenticate: async (wallet: string) => {
-      const providerStoreValue = get(ProviderStore);
-      const algodClient: algosdk.Algodv2 | undefined = providerStoreValue.algodClient;
-
-      console.log('algodClientx: ', algodClient);
-      const authTx = await draftAuthTx({ wallet });
-
+    authenticate: async (wallet: string, algodClient?: algosdk.Algodv2) => {
+      const authTx = await draftAuthTx(wallet, algodClient);
       await kibisisConnect.connect();
 
       const signedTxn = await kibisisConnect.signTransactions([[authTx]]);
@@ -208,11 +210,13 @@ export const wallets: Wallet[] = [
   }
 ];
 
-async function draftAuthTx({ wallet }: { wallet: string }): Promise<algosdk.Transaction> {
+async function draftAuthTx(wallet: string, algodClient?: algosdk.Algodv2): Promise<algosdk.Transaction> {
   const providerStoreValue = get(ProviderStore);
-  const algodClient: algosdk.Algodv2 | undefined = providerStoreValue.algodClient;
+  if (!algodClient) {
+    algodClient = providerStoreValue.algodClient;
+  }
 
-if (!algodClient) {
+  if (!algodClient) {
     throw new Error("Algod client not available");
   }
 
@@ -335,7 +339,7 @@ export function getSelectedWalletToken(): string | null {
   return wallet?.token || null;
 }
 
-export function signAndSendTransactions(txnGroups: algosdk.Transaction[][]): Promise<boolean> {
+export function signAndSendTransactions(txnGroups: algosdk.Transaction[][], algodClient?: algosdk.Algodv2): Promise<boolean> {
   const wallet = get(selectedWallet);
 
   if (!wallet) {
@@ -348,8 +352,12 @@ export function signAndSendTransactions(txnGroups: algosdk.Transaction[][]): Pro
     throw new Error("Wallet not found");
   }
 
+  if (!algodClient) {
+    algodClient = get(ProviderStore).algodClient;
+  }
+
   if (selected.signAndSendTxns) {
-    return selected.signAndSendTxns(txnGroups);
+    return selected.signAndSendTxns(txnGroups, algodClient);
   }
   else {
     throw new Error("Wallet does not support signing and sending transactions");
@@ -389,19 +397,3 @@ export function signTransactions(txnGroups: algosdk.Transaction[][]): Promise<Ui
 
   return isValidSignature;
 }*/
-
-/*    // Algorand node settings
-    const server = 'https://testnet-api.voi.nodly.io';
-    //const server = "https://testnet-api.algonode.cloud"
-    const port = '443';
-    const token = '';
-
-    // Algorand indexer settings
-    const indexerServer = 'https://testnet-idx.voi.nodly.io';
-    const indexerPort = '443';
-    const indexerToken = '';
-
-    // Initialize the Algodv2 client
-    export const algodClient = new algosdk.Algodv2(token, server, port);
-    export const algodIndexer = new algosdk.Indexer(indexerToken, indexerServer, indexerPort);*/
-

@@ -36,6 +36,14 @@ import { Web3Wallet } from 'avm-wallet-svelte';
 
 ### Use Component
 ```
+<Web3Wallet />
+```
+
+To facilitate actions that require an algod node, such as submitting transactions to the network,
+you can either initialize the component with the algodClient or pass the algodClient to
+the function (i.e. `signAndSendTransactions` below).
+
+```
 import algosdk from 'algosdk';
 
 const token = 'ALGOD_TOKEN';
@@ -47,10 +55,17 @@ const algodClient = new algosdk.Algodv2(token, server, port);
 <Web3Wallet {algodClient} />
 ```
 
-algodClient is optional and only required to use functions that depend on an algod instance, such as broadcasting transactions to the network.
+You can also specify which wallets to enable by passing an array of wallet names in the component's
+`availableWallets` parameter. All supported wallets are enabled by default.
+I.e. to only show PeraWallet and Kibisis:
+
+```
+<Web3Wallet {algodClient} availableWallets={['PeraWallet','Kibisis']}>
+```
 
 ### Stores
-This package utilizes stores to expose the list of connected wallets and currently selected wallet:
+This package utilizes stores to expose the list of connected wallets and the user's currently selected wallet,
+making these available by importing and subscribing to the stores:
 ```
 import { selectedWallet, connectedWallets } from 'avm-wallet-svelte';
 
@@ -65,12 +80,13 @@ Send transactions to the current selected wallet and sign them:
 ```
 import { signAndSendTransactions, selectedWallet, ProviderStore } from 'avm-wallet-svelte';
 import { get } from 'svelte/store';
+import algosdk from 'algosdk';
 
 const fromWallet = get(selectedWallet); // current wallet selected by user
 const toWallet = 'ADDRESS_OF_WALLET_TO_SEND_TO';
 
 if (fromWallet) {
-    const algodClient = get(ProviderStore).algodClient;
+    const algodClient = get(ProviderStore).algodClient; // get the algodClient provided to the component
     if (!algodClient) {
         throw new Error("Algod client not available");
     }
@@ -87,11 +103,13 @@ if (fromWallet) {
     allTxns.push(txn);
 
     const status = signAndSendTransactions([allTxns]);
+    // if you want to use a different algodClient instance
+    // or if none was provided to the <Web3Wallet/> component:
+    // const status = signAndSendTransactions([allTxns], algodClient);
 }
 ```
 
 ### Roadmap
-* Ability to selectively disable wallet options
 * Improve layout flexibility and add styling options
 * Error handling, onerror callbacks
 * Move storage of Auth token to less vulnerable storage
