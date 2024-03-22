@@ -60,7 +60,12 @@ You can also specify which wallets to enable by passing an array of wallet names
 I.e. to only show PeraWallet and Kibisis:
 
 ```
-<Web3Wallet {algodClient} availableWallets={['PeraWallet','Kibisis']}>
+<Web3Wallet {algodClient} availableWallets={['PeraWallet','Kibisis']} />
+
+// or
+
+import { WalletOptions } from 'avm-wallet-svelte';
+<Web3Wallet availableWallets={[WalletOptions.PERA,WalletOptions.KIBISIS]} />
 ```
 
 ### Stores
