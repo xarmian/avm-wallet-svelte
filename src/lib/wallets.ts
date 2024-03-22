@@ -15,6 +15,13 @@ import algosdk from "algosdk";
 import { Buffer } from "buffer";
 import { get } from "svelte/store";
 
+export const Wallets = {
+  PERA: peraConnect.WalletName,
+  DEFLY: deflyConnect.WalletName,
+  KIBISIS: kibisisConnect.WalletName,
+  // LUTE: "LuteWallet",
+}
+
 import * as ed from '@noble/ed25519';
 import { sha512 } from '@noble/hashes/sha512';
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
@@ -37,7 +44,7 @@ export interface WalletConnectionResult {
 
 export const wallets: Wallet[] = [
   {
-    name: "PeraWallet",
+    name: Wallets.PERA,
     icon: peraWalletIcon,
     connect: async () => {
       // Connect to PeraWallet
@@ -90,7 +97,7 @@ export const wallets: Wallet[] = [
         // store token in connectedWallets store under the wallet's address as property "token"
         connectedWallets.update((wallets) => {
           return wallets.map((w) => {
-            if (w.app === 'PeraWallet' && w.address === wallet) {
+            if (w.app === Wallets.PERA && w.address === wallet) {
               w.token = token;
             }
             return w;
@@ -100,7 +107,7 @@ export const wallets: Wallet[] = [
     }
   },
   {
-    name: "DeflyWallet",
+    name: Wallets.DEFLY,
     icon: deflyWalletIcon,
     connect: async () => {
       const wallets = await deflyConnect.connect();
@@ -145,7 +152,7 @@ export const wallets: Wallet[] = [
         // store token in connectedWallets store under the wallet's address as property "token"
         connectedWallets.update((wallets) => {
           return wallets.map((w) => {
-            if (w.app === 'DeflyWallet' && w.address === wallet) {
+            if (w.app === Wallets.DEFLY && w.address === wallet) {
               w.token = token;
             }
             return w;
@@ -155,7 +162,7 @@ export const wallets: Wallet[] = [
     }
   },
   {
-    name: "Kibisis",
+    name: Wallets.KIBISIS,
     icon: kibisisWalletIcon,
     connect: async () => {
       const wallets = await kibisisConnect.connect();
@@ -199,7 +206,7 @@ export const wallets: Wallet[] = [
         // store token in connectedWallets store under the wallet's address as property "token"
         connectedWallets.update((wallets) => {
           return wallets.map((w) => {
-            if (w.app === 'Kibisis' && w.address === wallet) {
+            if (w.app === Wallets.KIBISIS && w.address === wallet) {
               w.token = token;
             }
             return w;

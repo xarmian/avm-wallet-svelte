@@ -3,6 +3,8 @@ import { connectedWallets } from "./store.js";
 import { type WalletConnectionResult } from "./wallets.js";
 import algosdk from "algosdk";
 
+export const WalletName = "DeflyWallet";
+
 const wallet = new WalletClass();
 
 export async function connect(): Promise<WalletConnectionResult[] | null> {
@@ -15,7 +17,7 @@ export async function connect(): Promise<WalletConnectionResult[] | null> {
 
         if (accts.length === 0) return null;
 
-        return accts.map((acct) => { return { address: acct, app: "DeflyWallet" }; });
+        return accts.map((acct) => { return { address: acct, app: WalletName }; });
     } 
     catch (error) {
         console.error(error);
@@ -25,7 +27,7 @@ export async function connect(): Promise<WalletConnectionResult[] | null> {
 
 export async function disconnect() {
     await wallet.disconnect();
-    connectedWallets.remove("DeflyWallet");
+    connectedWallets.remove(WalletName);
 }
 
 export async function signAndSendTransactions(

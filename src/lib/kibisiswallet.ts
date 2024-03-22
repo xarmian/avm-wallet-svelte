@@ -5,6 +5,8 @@ import algosdk from "algosdk";
 import kibisisClient from '@agoralabs-sh/algorand-provider';
 import { Buffer } from 'buffer';
 
+export const WalletName = "Kibisis";
+
 declare global {
     interface Window { algorand: {
             enable: () => Promise<WalletConnectResponse>;
@@ -38,7 +40,7 @@ export async function connect(): Promise<WalletConnectionResult[] | null> {
 
     try {
         const resp = await window.algorand.enable();
-        return resp.accounts.map((acct) => { return { address: acct.address, app: "Kibisis" }; });
+        return resp.accounts.map((acct) => { return { address: acct.address, app: WalletName }; });
     } 
     catch (error) {
         console.error(error);
@@ -48,7 +50,7 @@ export async function connect(): Promise<WalletConnectionResult[] | null> {
 
 export function disconnect() {
     //wallet.disconnect();
-    connectedWallets.remove('Kibisis');
+    connectedWallets.remove(WalletName);
 }
 
 export async function signTransactions(txnGroups: algosdk.Transaction[][]): Promise<Uint8Array[]> {

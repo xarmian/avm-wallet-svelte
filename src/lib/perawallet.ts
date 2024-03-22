@@ -4,6 +4,8 @@ import { connectedWallets } from "./store.js";
 import { type WalletConnectionResult } from "./wallets.js";
 import algosdk from "algosdk";
 
+export const WalletName = "PeraWallet";
+
 const wallet = new WalletClass();
 
 export async function connect(): Promise<WalletConnectionResult[] | null> {
@@ -16,7 +18,7 @@ export async function connect(): Promise<WalletConnectionResult[] | null> {
 
         if (accts.length === 0) return null;
 
-        return accts.map((acct) => { return { address: acct, app: "PeraWallet" }; });
+        return accts.map((acct) => { return { address: acct, app: WalletName }; });
     } 
     catch (error) {
         console.error(error);
@@ -26,7 +28,7 @@ export async function connect(): Promise<WalletConnectionResult[] | null> {
 
 export async function disconnect() {
     await wallet.disconnect();
-    connectedWallets.remove('PeraWallet');
+    connectedWallets.remove(WalletName);
 }
 
 export async function signAndSendTransactions(

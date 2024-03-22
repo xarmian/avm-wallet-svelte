@@ -46,29 +46,11 @@
         allTxns.push(txn);
         //algosdk.assignGroupID(allTxns);
 
-        const status = signAndSendTransactions([allTxns]);
-
-        // sign txn
-        const pera = wallets.find(w => w.name === 'Kibisis');
-        if (pera && pera.signAndSendTxns) {
-            const signedTxn = await pera.signAndSendTxns([allTxns]);
-            console.log('did sign?', signedTxn);
-
-            return;
-            const addr = get(selectedWallet)?.address??'';
-
-            console.log(addr);
-
-            // verify signature
-            //console.log(await verifySignature(signedTxn[0]));
-
-            // decode transaction
-            //const decodedTxn = algosdk.decodeSignedTransaction(signedTxn[0]);
-            //console.log(decodedTxn);
-
+        try {
+            const status = await signAndSendTransactions([allTxns]);
         }
-        else {
-            throw new Error('PeraWallet not found');
+        catch (e: any) {
+            console.error(e);
         }
     }
 
@@ -77,7 +59,7 @@
 </script>
 
 <div class="m-20 p-4 rounded-xl border border-red-800 border-solid text-sm w-72">
-    <Web3Wallet showAuthButtons={true} />
+    <Web3Wallet showAuthButtons={true} algodClient={algodClient} />
     <button on:click={signTxn} class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded shadow-lg">
         Sign Tx
     </button>

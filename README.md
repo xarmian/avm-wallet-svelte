@@ -102,14 +102,20 @@ if (fromWallet) {
     const allTxns: algosdk.Transaction[] = [];
     allTxns.push(txn);
 
-    const status = signAndSendTransactions([allTxns]);
-    // if you want to use a different algodClient instance
-    // or if none was provided to the <Web3Wallet/> component:
-    // const status = signAndSendTransactions([allTxns], algodClient);
+    try {
+        const status = signAndSendTransactions([allTxns]);
+        // if you want to use a different algodClient instance
+        // or if none was provided to the <Web3Wallet/> component:
+        // const status = signAndSendTransactions([allTxns], algodClient);
+    }
+    catch(e: any) {
+        // error handling -- future plan is to make error events consistent across wallets
+        console.log(e.message);
+    }
 }
 ```
 
 ### Roadmap
 * Improve layout flexibility and add styling options
-* Error handling, onerror callbacks
+* Consistent error handling
 * Move storage of Auth token to less vulnerable storage

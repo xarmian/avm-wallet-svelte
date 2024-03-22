@@ -3,12 +3,13 @@
     import { selectedWallet, showWalletList, ProviderStore } from './store.js';
     import { onMount } from 'svelte';
     import type { Algodv2, Indexer } from 'algosdk';
+    import { Wallets } from './wallets.js';
 
     export let algodClient: Algodv2 | undefined = undefined;
     export let indexerClient: Indexer | undefined = undefined;
     export let walletListClass: string = 'bg-gray-100 dark:bg-gray-600';
     export let showAuthButtons: boolean = false;
-    export let availableWallets: string[] = ['PeraWallet', 'DeflyWallet', 'Kibisis', 'Lute'];
+    export let availableWallets: string[] = Object.values(Wallets);
 
     const closeWalletList = (event: any) => {
         if (!event.target.closest('.wallet-list')) {
@@ -18,7 +19,6 @@
 
     onMount(() => {
         ProviderStore.set({ algodClient, indexerClient });
-        console.log('algodclient',algodClient);
 
         window.addEventListener('click', closeWalletList);
         return () => {
