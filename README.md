@@ -19,7 +19,7 @@ Current wallets supported:
 * Pera Wallet - https://perawallet.app/
 * Defly Wallet - https://defly.app/
 * Kibisis - https://kibis.is/
-* Lute (coming soon) - https://lute.app/
+* Lute - https://lute.app/
 
 ### Demo
 Example implementation can be seen here: https://nftnavigator.xyz/
