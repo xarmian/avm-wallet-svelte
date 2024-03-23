@@ -48,6 +48,7 @@
 
         try {
             const status = await signAndSendTransactions([allTxns]);
+            console.log(status);
         }
         catch (e: any) {
             console.error(e);

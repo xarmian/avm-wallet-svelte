@@ -7,10 +7,12 @@
 import * as peraConnect from "./perawallet.js";
 import * as deflyConnect from "./deflywallet.js";
 import * as kibisisConnect from "./kibisiswallet.js";
+import * as LuteConnect from "./lutewallet.js";
 import { connectedWallets, selectedWallet, ProviderStore } from "./store.js";
 import peraWalletIcon from "./icons/perawallet-icon.png";
 import deflyWalletIcon from "./icons/defly_icon.svg";
 import kibisisWalletIcon from "./icons/kibisis_icon.svg";
+import luteWalletIcon from "./icons/lute_icon.png";
 import algosdk from "algosdk";
 import { Buffer } from "buffer";
 import { get } from "svelte/store";
@@ -19,7 +21,7 @@ export const Wallets = {
   PERA: peraConnect.WalletName,
   DEFLY: deflyConnect.WalletName,
   KIBISIS: kibisisConnect.WalletName,
-  // LUTE: "LuteWallet",
+  LUTE: LuteConnect.WalletName,
 }
 
 import * as ed from '@noble/ed25519';
@@ -207,6 +209,69 @@ export const wallets: Wallet[] = [
         connectedWallets.update((wallets) => {
           return wallets.map((w) => {
             if (w.app === Wallets.KIBISIS && w.address === wallet) {
+              w.token = token;
+            }
+            return w;
+          });
+        });
+      }
+    }
+  },
+  {
+    name: Wallets.LUTE,
+    icon: luteWalletIcon,
+    connect: async () => {
+      // get genesisID from algodClient
+      const providerStoreValue = get(ProviderStore);
+      
+      // get genesis file from algod client
+      const genesis = await providerStoreValue.algodClient?.genesis().do();
+
+      if (!genesis) {
+        throw new Error("Genesis ID not found: algodClient handle needed to connect to Lute Wallet");
+      }
+
+      const genesisID = genesis.network + '-' + genesis.id;
+
+      const wallets = await LuteConnect.connect(genesisID);
+      if (wallets) {
+        connectedWallets.add(wallets);
+        return Promise.resolve(wallets[0]);
+      }
+      else {
+        return Promise.resolve(null);
+      }
+    },
+    disconnect: () => {
+      LuteConnect.disconnect();
+    },
+    signTxns: async (txns: algosdk.Transaction[][]) => {
+      return await LuteConnect.signTransactions(txns);
+    },
+    signAndSendTxns: async (txns: algosdk.Transaction[][], algodClient?: algosdk.Algodv2) => {
+      const providerStoreValue = get(ProviderStore);
+      if (!algodClient) {
+        algodClient = providerStoreValue.algodClient;
+      }
+
+      if (!algodClient) {
+        throw new Error("Algod client not available");
+      }
+      //await LuteConnect.connect();
+      return await LuteConnect.signAndSendTransactions(algodClient, txns);
+    },
+    authenticate: async (wallet: string, algodClient?: algosdk.Algodv2) => {
+      const authTx = await draftAuthTx(wallet, algodClient);
+      const signedTxn = await LuteConnect.signTransactions([[authTx]]);
+
+      // base64 encode using buffer
+      const token = Buffer.from(signedTxn[0]).toString("base64");
+
+      if (await verifyToken(wallet, token)) {
+        // store token in connectedWallets store under the wallet's address as property "token"
+        connectedWallets.update((wallets) => {
+          return wallets.map((w) => {
+            if (w.app === Wallets.LUTE && w.address === wallet) {
               w.token = token;
             }
             return w;
