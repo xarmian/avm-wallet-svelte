@@ -1,9 +1,9 @@
 <script lang="ts">
-    import Web3Wallet from '$lib/Web3Wallet.svelte';
+    import Web3Wallet from '../lib/Web3Wallet.svelte';
     import algosdk from 'algosdk';
     import { Buffer } from 'buffer';
-    import { wallets, verifySignature, getSelectedWalletToken, signAndSendTransactions } from '$lib/wallets.ts';
-    import { selectedWallet } from '$lib/store.ts';
+    import { wallets, verifySignature, getSelectedWalletToken, signAndSendTransactions } from '../lib/wallets.ts';
+    import { selectedWallet } from '../lib/store.ts';
     import { get } from 'svelte/store';
     import type { Transaction } from 'algosdk';
     
@@ -20,7 +20,6 @@
     // Initialize the Algodv2 client
     const algodClient = new algosdk.Algodv2(token, server, port);
     const algodIndexer = new algosdk.Indexer(indexerToken, indexerServer, indexerPort);
-
 
     const encodeUnsignedTransaction = (t: Transaction): string => {
         return Buffer.from(algosdk.encodeUnsignedTransaction(t)).toString('base64');
