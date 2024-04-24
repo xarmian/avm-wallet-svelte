@@ -42,6 +42,7 @@ export interface WalletConnectionResult {
   address: string;
   app: string;
   token?: string;
+  auth?: boolean;
 }
 
 export const wallets: Wallet[] = [

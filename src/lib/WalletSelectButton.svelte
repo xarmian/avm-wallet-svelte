@@ -2,6 +2,8 @@
   import type { Wallet, WalletConnectionResult } from './wallets.js';
   import { wallets } from './wallets.js';
   import { selectedWallet as selectedWalletStore, connectedWallets as connectedWalletStore, showWalletList } from './store.js';
+  //@ts-expect-error no types for js-cookie
+  import Cookies from 'js-cookie';
 
   export let walletName: string;
   export let showAuthButton: boolean = false;
@@ -42,11 +44,12 @@
   };
 
   const logoutWallet = async (app: string, addr: string) => {
-    // remove token property from wallet with address "addr" and app "app" in connectedWalletStore using update method
+    // change auth property from wallet with address "addr" and app "app" in connectedWalletStore using update method, delete auth Cookie
+    Cookies.remove(`avm-wallet-token-${addr}`);
     connectedWalletStore.update((wallets) => {
       return wallets.map((w) => {
         if (w.app === app && w.address === addr) {
-          delete w.token;
+          w.auth = false;
         }
         return w;
       });
@@ -81,7 +84,7 @@
             {connectedWallet.address.slice(0, 8)}...{connectedWallet.address.slice(-8)}
           </button>
           {#if showAuthButton}
-            {#if connectedWallet.token}
+            {#if connectedWallet.auth}
               <button class="p-2 text-blue-600 hover:text-blue-500 underline" on:click={() => logoutWallet(connectedWallet.app, connectedWallet.address)}>
                 logout
               </button>

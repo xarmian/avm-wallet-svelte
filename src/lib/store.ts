@@ -2,6 +2,7 @@ import { get, writable } from 'svelte/store';
 import type { Writable } from 'svelte/store';
 import type { WalletConnectionResult } from './wallets.ts';
 import type { Algodv2, Indexer } from 'algosdk';
+import Cookies from 'js-cookie';
 
 interface AVMWalletStore extends Writable<WalletConnectionResult[]> {
   remove: (app: string) => void;
@@ -29,6 +30,13 @@ function createSelectedWalletStore(): SelectedWalletStore {
   return {
     subscribe,
     set: (wallet: WalletConnectionResult) => {
+      const w = get(connectedWallets).find(w => w.address === wallet.address && w.app === wallet.app);
+      if (w?.token) {
+        Cookies.set('avm-wallet-token-' + w.address, w.token, { secure: true, sameSite: 'strict' });
+        delete w.token;
+        w.auth = true;
+      }
+
       set(wallet);
       localStorage.setItem(key, JSON.stringify(wallet));
     },
@@ -66,8 +74,10 @@ function createWalletStore(): AVMWalletStore {
     },
     remove: (app: string) => {
       const storedValue = get(connectedWallets);
+      const oldWallets = storedValue.filter(wallet => wallet.app === app);
       const newWallets = storedValue.filter(wallet => wallet.app !== app);
       set(newWallets);
+
       if (get(selectedWallet)?.app === app) {
         if (newWallets.length > 0) {
           selectedWallet.set(newWallets[0]);
@@ -78,6 +88,11 @@ function createWalletStore(): AVMWalletStore {
       }
       localStorage
         .setItem(key, JSON.stringify(newWallets));
+
+      // remove tokens from cookies
+      oldWallets.forEach(wallet => {
+        Cookies.remove('avm-wallet-token-' + wallet.address);
+      });
     },
     add: (wallets: WalletConnectionResult[]) => {
       const storedValue = get(connectedWallets);
@@ -93,6 +108,16 @@ function createWalletStore(): AVMWalletStore {
     update: (updater: (wallets: WalletConnectionResult[]) => WalletConnectionResult[]) => {
       const storedValue = get(connectedWallets);
       const newWallets = updater(storedValue);
+
+      // update token in cookies
+      newWallets.forEach(wallet => {
+        if (wallet.token) {
+          Cookies.set('avm-wallet-token-' + wallet.address, wallet.token, { secure: true, sameSite: 'strict' });
+          delete wallet.token;
+          wallet.auth = true;
+        }
+      });
+
       set(newWallets);
       localStorage
         .setItem(key, JSON.stringify(newWallets));

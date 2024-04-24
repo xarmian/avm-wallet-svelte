@@ -55,7 +55,7 @@
         }
     }
 
-    console.log(getSelectedWalletToken());
+    //console.log(getSelectedWalletToken());
 
 </script>
 
