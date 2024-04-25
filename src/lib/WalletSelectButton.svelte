@@ -2,11 +2,13 @@
   import type { Wallet, WalletConnectionResult } from './wallets.js';
   import { wallets } from './wallets.js';
   import { selectedWallet as selectedWalletStore, connectedWallets as connectedWalletStore, showWalletList } from './store.js';
-  //@ts-expect-error no types for js-cookie
   import Cookies from 'js-cookie';
 
   export let walletName: string;
   export let showAuthButton: boolean = false;
+  let showAuthModal = false;
+  let walletAuthError = '';
+
   const wallet: Wallet | undefined = wallets.find(w => w.name === walletName);
 
   const connectWallet = async () => {
@@ -36,7 +38,17 @@
   const authenticateWallet = async (addr: string) => {
     const wallet = wallets.find((w) => w.name === walletName);
     if (wallet && wallet.authenticate) {
-      wallet.authenticate(addr);
+      walletAuthError = '';
+      showAuthModal = true;
+
+      try {
+        await wallet.authenticate(addr);
+        showAuthModal = false;
+      }
+      catch (e: any) {
+        console.error('err',e);
+        walletAuthError = e.message;
+      }
     }
     else {
       throw new Error(`Wallet ${walletName} not found`);
@@ -99,6 +111,25 @@
     {/each}
   </div>
 {/if}
+{#if showAuthModal}
+  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+    <div class="bg-white dark:bg-gray-500 p-4 rounded-lg relative">
+      <h2 class="text-lg font-bold">Authenticate Wallet</h2>
+      <p>A zero-cost transaction has been sent to your wallet for signing.</p>
+      <p>This transaction will not be broadcast to the network and has no cost.</p>
+      <p>Please sign the transaction to authenticate.</p>
+      {#if walletAuthError == ''}
+        <div class="flex justify-center">
+          <div class="spinner"></div>
+        </div>
+      {:else}
+        <p class="text-red-600 flex justify-center m-4">{walletAuthError}</p>
+      {/if}
+      <button class="absolute top-0 right-0 p-2" on:click={() => showAuthModal = false}>X</button>
+      <button class="absolute bottom-0 right-0 p-2" on:click={() => showAuthModal = false}>Cancel</button>
+    </div>
+  </div>
+{/if}
 
 <style>
   .wallet-icon {
@@ -116,5 +147,18 @@
   .walletAddress.selected {
     background-color: rgba(255,255,255,0.2) !important;
   }
+  .spinner {
+  border: 16px solid #f3f3f3;
+  border-top: 16px solid #3498db;
+  border-radius: 50%;
+  width: 120px;
+  height: 120px;
+  animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
 </style>
 

@@ -35,7 +35,7 @@ export interface Wallet {
   disconnect?: () => void;
   signTxns?: (txns: algosdk.Transaction[][]) => Promise<Uint8Array[]>;
   signAndSendTxns?: (txns: algosdk.Transaction[][], algodClient?: algosdk.Algodv2) => Promise<boolean>;
-  authenticate?: (wallet: string, algodClient?: algosdk.Algodv2) => void;
+  authenticate?: (wallet: string, algodClient?: algosdk.Algodv2) => Promise<void>;
 }
 
 export interface WalletConnectionResult {
@@ -82,7 +82,9 @@ export const wallets: Wallet[] = [
     authenticate: async (wallet: string, algodClient?: algosdk.Algodv2) => {
       const authTx = await draftAuthTx(wallet, algodClient);
 
-      await peraConnect.connect();
+      if (!await peraConnect.connect()) {
+        throw new Error("Could not connect to Pera Wallet.");
+      }
 
       /*const txnToSign = [
         {
@@ -144,7 +146,9 @@ export const wallets: Wallet[] = [
     authenticate: async (wallet: string, algodClient?: algosdk.Algodv2) => {
       const authTx = await draftAuthTx(wallet, algodClient);
 
-      await deflyConnect.connect();
+      if (!await deflyConnect.connect()) {
+        throw new Error("Could not connect to Defly Wallet.");
+      }
 
       const signedTxn = await deflyConnect.signTransactions([[authTx]]);
 
@@ -198,7 +202,10 @@ export const wallets: Wallet[] = [
     },
     authenticate: async (wallet: string, algodClient?: algosdk.Algodv2) => {
       const authTx = await draftAuthTx(wallet, algodClient);
-      await kibisisConnect.connect();
+      
+      if (!await kibisisConnect.connect()) {
+        throw new Error("Could not connect to Kibisis Wallet. Is it enabled?");
+      };
 
       const signedTxn = await kibisisConnect.signTransactions([[authTx]]);
 
