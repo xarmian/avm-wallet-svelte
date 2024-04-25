@@ -120,7 +120,14 @@ if (fromWallet) {
 }
 ```
 
+### Authentication
+
+This section needs more documentation. Web3Wallet accepts an optional boolean parameter `showAuthButtons`.
+If true, users will see an `auth` option after connecting their wallet. Clicking `auth` will send a validation
+transaction to their wallet. Once authenticated, the signed transaction is stored as a token in the browser's
+secure cookie storage and can be used for authentication. Token expiration is currently hard-coded for 90 days
+with plans to be customizable in the future.
+
 ### Roadmap
 * Improve layout flexibility and add styling options
 * Consistent error handling
-* Move storage of Auth token to less vulnerable storage

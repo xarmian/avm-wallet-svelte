@@ -294,8 +294,8 @@ async function draftAuthTx(wallet: string, algodClient?: algosdk.Algodv2): Promi
   }
 
   const enc = new TextEncoder();
-  const day1 = 24 * 60 * 60 * 1000;
-  const notePlainText = `avm-wallet-auth ${Date.now() + day1}`;
+  const day90 = 24 * 60 * 60 * 1000 * 90;
+  const notePlainText = `avm-wallet-auth ${Date.now() + day90}`;
   const note = enc.encode(notePlainText);
   const params = await algodClient.getTransactionParams().do();
 
@@ -320,7 +320,7 @@ async function draftAuthTx(wallet: string, algodClient?: algosdk.Algodv2): Promi
 }
 
 export const verifyToken = async (wallet: string, token: string): Promise<boolean> => {
-  const day1 = 24 * 60 * 60 * 1000;
+  const day90 = 24 * 60 * 60 * 1000 * 90;
   const minutes30 = 30 * 60 * 1000;
 
   //converting the base64 encoded tx back to binary data
@@ -347,7 +347,7 @@ export const verifyToken = async (wallet: string, token: string): Promise<boolea
 
   // Guard clause to make sure the token has not expired.
   // We also check the token expiration is not too far out, which would be a red flag.
-  if (Number(decodedNote[1]) < Date.now() || Number(decodedNote[1]) > Date.now() + day1 + minutes30) {
+  if (Number(decodedNote[1]) < Date.now() || Number(decodedNote[1]) > Date.now() + day90 + minutes30) {
     throw new Error("Token expired, authenticate again");
   }
 
