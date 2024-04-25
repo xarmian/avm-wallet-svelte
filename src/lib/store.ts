@@ -121,6 +121,15 @@ function createWalletStore(): AVMWalletStore {
       set(newWallets);
       localStorage
         .setItem(key, JSON.stringify(newWallets));
+
+      // update selectedWallet
+      const selected = get(selectedWallet);
+      if (selected) {
+        const newSelected = newWallets.find(w => w.address === selected.address && w.app === selected.app);
+        if (newSelected) {
+          selectedWallet.set(newSelected);
+        }
+      }
     }
   };
 }

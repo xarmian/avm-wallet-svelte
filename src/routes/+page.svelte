@@ -25,6 +25,10 @@
         return Buffer.from(algosdk.encodeUnsignedTransaction(t)).toString('base64');
     };
 
+    selectedWallet.subscribe((wallet) => {
+        console.log('sub',wallet);
+    });
+
     const signTxn = async () => {
         if (!algodClient) {
             throw new Error('AlgodClient not found');
