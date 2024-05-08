@@ -3,7 +3,7 @@
     import algosdk from 'algosdk';
     import { Buffer } from 'buffer';
     import { wallets, verifySignature, getSelectedWalletToken, signAndSendTransactions } from '../lib/wallets.ts';
-    import { selectedWallet } from '../lib/store.ts';
+    import { selectedWallet, setOnAddHandler, setOnAuthHandler } from '../lib/store.ts';
     import { get } from 'svelte/store';
     import type { Transaction } from 'algosdk';
     
@@ -27,6 +27,14 @@
 
     selectedWallet.subscribe((wallet) => {
         console.log('sub',wallet);
+    });
+
+    setOnAddHandler(async (wallet) => {
+        console.log('add',wallet);
+    });
+
+    setOnAuthHandler(async (wallet) => {
+        console.log('auth',wallet);
     });
 
     const signTxn = async () => {

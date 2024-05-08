@@ -4,6 +4,17 @@ import type { WalletConnectionResult } from './wallets.ts';
 import type { Algodv2, Indexer } from 'algosdk';
 import Cookies from 'js-cookie';
 
+let onAddHandler: (wallets: WalletConnectionResult[]) => void = () => { };
+let onAuthHandler: (wallet: WalletConnectionResult) => void = () => { };
+
+export function setOnAddHandler(newHandler: (wallets: WalletConnectionResult[]) => void) {
+  onAddHandler = newHandler;
+}
+
+export function setOnAuthHandler(newHandler: (wallet: WalletConnectionResult) => void) {
+  onAuthHandler = newHandler;
+}
+
 interface AVMWalletStore extends Writable<WalletConnectionResult[]> {
   remove: (app: string) => void;
   reset: () => void;
@@ -104,6 +115,8 @@ function createWalletStore(): AVMWalletStore {
       selectedWallet.set(wallets[0]);
       localStorage
         .setItem(key, JSON.stringify(newWallets));
+
+      onAddHandler(wallets);
     },
     update: (updater: (wallets: WalletConnectionResult[]) => WalletConnectionResult[]) => {
       const storedValue = get(connectedWallets);
@@ -115,6 +128,7 @@ function createWalletStore(): AVMWalletStore {
           Cookies.set('avm-wallet-token-' + wallet.address, wallet.token, { secure: true, sameSite: 'strict' });
           delete wallet.token;
           wallet.auth = true;
+          onAuthHandler(wallet);
         }
       });
 
