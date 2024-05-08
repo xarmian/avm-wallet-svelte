@@ -97,11 +97,11 @@
           </button>
           {#if showAuthButton}
             {#if connectedWallet.auth}
-              <button class="p-2 text-blue-600 hover:text-blue-500 underline" on:click={() => logoutWallet(connectedWallet.app, connectedWallet.address)}>
+              <button class="p-2 text-blue-600 hover:text-blue-500 dark:text-blue-500 dark:hover:text-blue-400 underline" on:click={() => logoutWallet(connectedWallet.app, connectedWallet.address)}>
                 logout
               </button>
             {:else}
-              <button class="p-2 text-blue-600 hover:text-blue-500 underline" on:click={() => authenticateWallet(connectedWallet.address)}>
+              <button class="p-2 text-blue-600 hover:text-blue-500 dark:text-blue-500 dark:hover:text-blue-400 underline" on:click={() => authenticateWallet(connectedWallet.address)}>
                 auth
               </button>
             {/if}
