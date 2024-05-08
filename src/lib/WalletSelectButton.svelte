@@ -78,11 +78,11 @@
     </div>
     <div>
       {#if $connectedWalletStore.filter((w) => w.app === walletName).length > 0}
-        <button on:click="{disconnectWallet}">
+        <button class="px-4 py-1 my-1 bg-red-500 text-white rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 dark:bg-red-700 dark:hover:bg-red-800" on:click="{disconnectWallet}">
           Disconnect
         </button>
       {:else}
-        <button on:click="{connectWallet}">
+        <button class="px-4 py-1 my-1 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 dark:bg-blue-700 dark:hover:bg-blue-800" on:click="{connectWallet}">
           Connect
         </button>
       {/if}
@@ -92,16 +92,16 @@
     {#each $connectedWalletStore.filter((w) => w.app === walletName) as connectedWallet}
       {#if connectedWallet.address}
         <div class="flex flex-row w-full justify-between">
-          <button class="walletAddress p-2 {$selectedWalletStore?.app == connectedWallet.app && $selectedWalletStore?.address == connectedWallet.address ? 'selected':''}" on:click={() => selectDefaultWallet(connectedWallet.address)}>
+          <button class="walletAddress p-2 rounded {$selectedWalletStore?.app == connectedWallet.app && $selectedWalletStore?.address == connectedWallet.address ? 'selected':''}" on:click={() => selectDefaultWallet(connectedWallet.address)}>
             {connectedWallet.address.slice(0, 8)}...{connectedWallet.address.slice(-8)}
           </button>
           {#if showAuthButton}
             {#if connectedWallet.auth}
-              <button class="p-2 text-blue-600 hover:text-blue-500 dark:text-blue-500 dark:hover:text-blue-400 underline" on:click={() => logoutWallet(connectedWallet.app, connectedWallet.address)}>
+              <button class="p-2 text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 underline" on:click={() => logoutWallet(connectedWallet.app, connectedWallet.address)}>
                 logout
               </button>
             {:else}
-              <button class="p-2 text-blue-600 hover:text-blue-500 dark:text-blue-500 dark:hover:text-blue-400 underline" on:click={() => authenticateWallet(connectedWallet.address)}>
+              <button class="p-2 text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 underline" on:click={() => authenticateWallet(connectedWallet.address)}>
                 auth
               </button>
             {/if}
@@ -145,6 +145,9 @@
     background-color: rgba(255,255,255,0.1);
   }
   .walletAddress.selected {
+    background-color: rgba(0, 255, 0, 0.3) !important;
+  }
+  .walletAddress.selected:dark {
     background-color: rgba(255,255,255,0.2) !important;
   }
   .spinner {

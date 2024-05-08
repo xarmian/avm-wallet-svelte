@@ -7,7 +7,7 @@
 
     export let algodClient: Algodv2 | undefined = undefined;
     export let indexerClient: Indexer | undefined = undefined;
-    export let walletListClass: string = 'bg-gray-100 dark:bg-gray-600';
+    export let walletListClass: string = 'bg-gray-100 dark:bg-gray-600 dark:text-gray-100';
     export let showAuthButtons: boolean = false;
     export let availableWallets: string[] = Object.values(Wallets);
 
