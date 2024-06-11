@@ -96,9 +96,9 @@
                 </div>
                 {#if showAuthButtons && showAuthenticated}
                     {#if $selectedWallet.auth}
-                        <div class="text-green-300"> Authenticated</div>
+                        <div class="text-green-300 text-xs"> Authenticated</div>
                     {:else}
-                        <div class="text-yellow-400" on:click|stopPropagation={() => authenticateSelectedWallet()}> Click to Authenticate</div>
+                        <div class="text-yellow-400 text-xs" on:click|stopPropagation={() => authenticateSelectedWallet()}> Click to Authenticate</div>
                     {/if}
                 {/if}
             {:else}
