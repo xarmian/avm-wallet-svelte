@@ -6,8 +6,7 @@ import { Buffer } from "buffer";
 
 export const WalletName = "LuteWallet";
 
-// @ts-expect-error - LuteConnect is not a class
-const wallet = new LuteConnect('avm-wallet-svelte');
+const wallet = new LuteConnect.default('avm-wallet-svelte');
 
 export async function connect(genesisID: string): Promise<WalletConnectionResult[] | null> {
     try {
