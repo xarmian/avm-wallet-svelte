@@ -6,7 +6,8 @@ import { Buffer } from "buffer";
 
 export const WalletName = "LuteWallet";
 
-const wallet = new LuteConnect.default('avm-wallet-svelte');
+//@ts-expect-error - LuteConnect default import issue
+const wallet = (LuteConnect.default) ? new LuteConnect.default('avm-wallet-svelte') : new LuteConnect('avm-wallet-svelte');
 
 export async function connect(genesisID: string): Promise<WalletConnectionResult[] | null> {
     try {
