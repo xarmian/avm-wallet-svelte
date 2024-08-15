@@ -12,6 +12,8 @@
     export let showAuthButtons: boolean = false;
     export let availableWallets: string[] = Object.values(Wallets);
     export let showAuthenticated: boolean = true;
+    export let connectButtonType: string = 'wallet'; // static, wallet
+    export let modalType: string = 'dropdown'; // modal, dropdown
 
     let showAuthModal = false;
     let walletAuthError = '';
@@ -88,37 +90,56 @@
 
 <!-- svelte-ignore a11y-click-events-have-key-events -->
 <div class="flex flex-col relative" on:click|stopPropagation>
-    <button class="flex justify-between items-center bg-blue-500 hover:bg-blue-700 text-white text-sm font-bold py-0 h-10 px-4 rounded shadow-lg" on:click={showWalletListHandler}>
-        <span class="text-center flex-grow ml-8">
-            {#if $selectedWallet?.address}
-                <div>
-                    {$selectedWallet.address.slice(0, 6)}...{$selectedWallet.address.slice(-6)}
-                </div>
-                {#if showAuthButtons && showAuthenticated}
-                    {#if $selectedWallet.auth}
-                        <div class="text-green-300 text-xs"> Authenticated</div>
-                    {:else}
-                        <div class="text-yellow-400 text-xs" on:click|stopPropagation={() => authenticateSelectedWallet()}> Click to Authenticate</div>
+        <button class="flex justify-between items-center bg-blue-500 hover:bg-blue-700 text-white text-sm font-bold py-0 h-10 px-4 rounded shadow-lg" on:click={showWalletListHandler}>
+            <span class="text-center flex-grow ml-8">
+                {#if $selectedWallet?.address && connectButtonType === 'wallet'}
+                    <div>
+                        {$selectedWallet.address.slice(0, 6)}...{$selectedWallet.address.slice(-6)}
+                    </div>
+                    {#if showAuthButtons && showAuthenticated}
+                        {#if $selectedWallet.auth}
+                            <div class="text-green-300 text-xs"> Authenticated</div>
+                        {:else}
+                            <div class="text-yellow-400 text-xs" on:click|stopPropagation={() => authenticateSelectedWallet()}> Click to Authenticate</div>
+                        {/if}
                     {/if}
+                {:else}
+                    Connect Wallet
                 {/if}
-            {:else}
-                Connect Wallet
+            </span>
+            {#if connectButtonType === 'dropdown'}
+                {#if !$showWalletList}
+                    <svg class="h-6 w-6 ml-2" fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                        <path d="M7 10l5 5 5-5z" />
+                    </svg>
+                {:else}
+                    <svg class="h-6 w-6 inline-block ml-2" fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                        <path d="M19 14l-5-5-5 5z" />
+                    </svg>
+                {/if}
             {/if}
-        </span>
-        {#if !$showWalletList}
-            <svg class="h-6 w-6 ml-2" fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                <path d="M7 10l5 5 5-5z" />
-            </svg>
-        {:else}
-            <svg class="h-6 w-6 inline-block ml-2" fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                <path d="M19 14l-5-5-5 5z" />
-            </svg>
-        {/if}
-    </button>
+        </button>
     {#if $showWalletList}
-        <div class="walletListBox absolute right-0 w-72 z-50 {walletListClass}">
-            <WalletList showAuthButtons={showAuthButtons} availableWallets={availableWallets} />
-        </div>
+        {#if modalType === 'dropdown'}
+            <div class="walletListBox absolute right-0 w-72 z-50 {walletListClass}">
+                <WalletList showAuthButtons={showAuthButtons} availableWallets={availableWallets} />
+            </div>
+        {:else}
+            <div class="fixed inset-0 flex items-center justify-center z-50">
+                <div class="fixed inset-0 bg-black opacity-50" on:click={closeWalletList}></div>
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden w-full max-w-lg mx-auto z-10">
+                    <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Wallet List</h2>
+                    <button class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none" on:click={closeWalletList}>
+                        <i class="fa fa-close p-2 border border-black rounded-md">
+                    </button>
+                </div>
+                <div class="p-4">
+                    <WalletList showAuthButtons={showAuthButtons} availableWallets={availableWallets} />
+                </div>
+            </div>
+          </div>
+        {/if}
     {/if}
 </div>
 {#if showAuthModal}
