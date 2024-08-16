@@ -102,7 +102,7 @@
               </button>
             {:else}
               <button class="p-2 text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 underline" on:click={() => authenticateWallet(connectedWallet.address)}>
-                auth
+                login
               </button>
             {/if}
           {/if}

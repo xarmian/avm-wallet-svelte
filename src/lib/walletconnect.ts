@@ -6,6 +6,7 @@ import { connectedWallets } from "./store.js";
 import { type WalletConnectionResult } from "./wallets.js";
 import algosdk from "algosdk";
 import { Buffer } from "buffer";
+import { PUBLIC_WALLETCONNECT_PROJECT_ID as PROJECT_ID } from '$env/static/public';
 
 export const WalletName = "WalletConnect";
 
@@ -15,9 +16,12 @@ let web3Modal: Web3Modal | null = null;
 let subscribed = false;
 
 const CHAIN_ID = "algorand:IXnoWtviVVJW5LGivNFc0Dq14V3kqaXu";
-const PROJECT_ID = "e09be36e6a33b49b3d9368cc18c32700";
 
 async function createSignClient() {
+    if (!PROJECT_ID) {
+        throw new Error("Missing WalletConnect project ID");
+    }
+
     if (!signClient) {
         signClient = await SignClient.init({
             projectId: PROJECT_ID,
@@ -50,16 +54,17 @@ export async function connect(): Promise<WalletConnectionResult[] | null> {
         const client = await createSignClient();
         const modal = createWeb3Modal();
 
-        if (session) {
+        /*if (client.session) {
             if (client.session.keys.includes(session.topic)) {
                 return session.namespaces['algorand'].accounts.map((account) => {
                     const [, , address] = account.split(":");
                     return { address, app: WalletName };
                 });
             }
-        }
+        }*/
 
         const { uri, approval } = await client.connect({
+            autoConnect: true,
             /*requiredNamespaces: {
                 algorand: {
                     methods: ["algo_signTransaction"],

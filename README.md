@@ -20,6 +20,7 @@ Current wallets supported:
 * Defly Wallet - https://defly.app/
 * Kibisis - https://kibis.is/
 * Lute - https://lute.app/
+* WalletConnect - https://walletconnect.com/
 
 ### Demo
 Example implementation can be seen here: https://nftnavigator.xyz/
@@ -67,6 +68,13 @@ I.e. to only show PeraWallet and Kibisis:
 import { WalletOptions } from 'avm-wallet-svelte';
 <Web3Wallet availableWallets={[WalletOptions.PERA,WalletOptions.KIBISIS]} />
 ```
+
+### WalletConnect
+
+If using WalletConnect you must obtain a Project ID from WalletConnect at https://cloud.walletconnect.com.
+This must be set as an environment variable PUBLC_WALLETCONNECT_PROJECT_ID, i.e.
+
+PUBLIC_WALLETCONNECT_PROJECT_ID=abcdefghijklmnop
 
 ### Stores
 This package utilizes stores to expose the list of connected wallets and the user's currently selected wallet,
