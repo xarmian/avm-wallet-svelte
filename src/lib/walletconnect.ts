@@ -1,13 +1,12 @@
 import SignClient from "@walletconnect/sign-client";
 import type { SessionTypes } from "@walletconnect/types";
+import { getSdkError } from "@walletconnect/utils";
 import { WalletConnectModal as Web3Modal } from "@walletconnect/modal";
 import { connectedWallets, wcProjectIdStore } from "./store.js";
 import { type WalletConnectionResult } from "./wallets.js";
 import algosdk from "algosdk";
 import { Buffer } from "buffer";
 import { get } from "svelte/store";
-import pkg from '@walletconnect/utils';
-const { getSdkError } = pkg;
 
 export const WalletName = "WalletConnect";
 
