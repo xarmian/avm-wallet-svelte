@@ -120,7 +120,7 @@
         {/if}
       {/each}
     </div>
-  {:else if showAccountList}
+  {:else if showAccountList && $connectedWalletStore.filter((w) => w.app === walletName).length > 0}
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <div class="fixed inset-0 bg-black flex items-center justify-center" on:click={() => showAccountList = false}>
       <div class="flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden w-full max-w-lg mx-auto z-10">
