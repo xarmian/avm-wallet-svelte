@@ -140,7 +140,7 @@
                     </button>
                 </div>
                 <div class="p-4">
-                    <WalletList showAuthButtons={showAuthButtons} availableWallets={availableWallets} />
+                    <WalletList showAuthButtons={showAuthButtons} availableWallets={availableWallets} {modalType} />
                 </div>
             </div>
           </div>

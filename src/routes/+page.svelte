@@ -72,7 +72,7 @@
 </script>
 
 <div class="m-20 p-4 rounded-xl border border-red-800 border-solid text-sm w-72">
-    <Web3Wallet showAuthButtons={true} algodClient={algodClient} wcProjectId={PROJECT_ID} />
+    <Web3Wallet showAuthButtons={true} algodClient={algodClient} wcProjectId={PROJECT_ID} modalType="modal" connectButtonType="static" flow="login" />
     <button on:click={signTxn} class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded shadow-lg">
         Sign Tx
     </button>

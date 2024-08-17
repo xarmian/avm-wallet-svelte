@@ -6,8 +6,10 @@
 
   export let walletName: string;
   export let showAuthButton: boolean = false;
+  export let modalType: string = 'dropdown'; // modal, dropdown
   let showAuthModal = false;
   let walletAuthError = '';
+  let showAccountList = false;
 
   const wallet: Wallet | undefined = wallets.find(w => w.name === walletName);
 
@@ -17,7 +19,7 @@
       throw new Error(`Wallet ${walletName} not found`);
     }
     await wallet.connect();
-    //showWalletList.set(false);
+    showAccountList = true;
   };
 
   const disconnectWallet = async () => {
@@ -38,12 +40,19 @@
   const authenticateWallet = async (addr: string) => {
     const wallet = wallets.find((w) => w.name === walletName);
     if (wallet && wallet.authenticate) {
+      console.log(wallet);
       walletAuthError = '';
       showAuthModal = true;
 
       try {
+        console.log('a');
         await wallet.authenticate(addr);
+        console.log('b');
         showAuthModal = false;
+
+        if (modalType == 'modal') {
+          showWalletList.set(false);
+        }
       }
       catch (e: any) {
         console.error('err',e);
@@ -77,7 +86,7 @@
       <img src="{wallet.icon}" alt="{wallet.name} icon" class="wallet-icon inline"> {wallet.name}
     </div>
     <div>
-      {#if $connectedWalletStore.filter((w) => w.app === walletName).length > 0}
+      {#if $connectedWalletStore.filter((w) => w.app === walletName).length > 0 && modalType == 'dropdown'}
         <button class="px-4 py-1 my-1 bg-red-500 text-white rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 dark:bg-red-700 dark:hover:bg-red-800" on:click="{disconnectWallet}">
           Disconnect
         </button>
@@ -88,28 +97,55 @@
       {/if}
     </div>
   </div>
-  <div class="flex flex-col">
-    {#each $connectedWalletStore.filter((w) => w.app === walletName) as connectedWallet}
-      {#if connectedWallet.address}
-        <div class="flex flex-row w-full justify-between">
-          <button class="walletAddress p-2 rounded {$selectedWalletStore?.app == connectedWallet.app && $selectedWalletStore?.address == connectedWallet.address ? 'selected':''}" on:click={() => selectDefaultWallet(connectedWallet.address)}>
-            {connectedWallet.address.slice(0, 8)}...{connectedWallet.address.slice(-8)}
+  {#if modalType == 'dropdown'}
+    <div class="flex flex-col">
+      {#each $connectedWalletStore.filter((w) => w.app === walletName) as connectedWallet}
+        {#if connectedWallet.address}
+          <div class="flex flex-row w-full justify-between">
+            <button class="walletAddress p-2 rounded {$selectedWalletStore?.app == connectedWallet.app && $selectedWalletStore?.address == connectedWallet.address ? 'selected':''}" on:click={() => selectDefaultWallet(connectedWallet.address)}>
+              {connectedWallet.address.slice(0, 8)}...{connectedWallet.address.slice(-8)}
+            </button>
+            {#if showAuthButton}
+              {#if connectedWallet.auth}
+                <button class="p-2 text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 underline" on:click={() => logoutWallet(connectedWallet.app, connectedWallet.address)}>
+                  logout
+                </button>
+              {:else}
+                <button class="p-2 text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 underline" on:click={() => authenticateWallet(connectedWallet.address)}>
+                  login
+                </button>
+              {/if}
+            {/if}
+          </div>
+        {/if}
+      {/each}
+    </div>
+  {:else if showAccountList}
+    <!-- svelte-ignore a11y-click-events-have-key-events -->
+    <div class="fixed inset-0 bg-black flex items-center justify-center" on:click={() => showAccountList = false}>
+      <div class="flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden w-full max-w-lg mx-auto z-10">
+        <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Select Account</h2>
+          <button class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none" on:click={() => showAccountList = false}>
+            <i class="fa fa-close p-2 border border-black rounded-md">
           </button>
-          {#if showAuthButton}
-            {#if connectedWallet.auth}
-              <button class="p-2 text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 underline" on:click={() => logoutWallet(connectedWallet.app, connectedWallet.address)}>
-                logout
-              </button>
-            {:else}
-              <button class="p-2 text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 underline" on:click={() => authenticateWallet(connectedWallet.address)}>
-                login
+        </div>
+      
+        <div class="bg-white dark:bg-gray-500 p-4 rounded-lg relative">
+          {#each $connectedWalletStore.filter((w) => w.app === walletName) as connectedWallet}
+            {#if connectedWallet.address}
+              <button class="p-2 rounded w-full hover:bg-slate-200" on:click={() => authenticateWallet(connectedWallet.address)}>
+                {connectedWallet.address.slice(0, 8)}...{connectedWallet.address.slice(-8)}
               </button>
             {/if}
-          {/if}
+          {/each}
         </div>
-      {/if}
-    {/each}
-  </div>
+        <button class="place-self-center px-4 py-1 my-1 bg-red-500 text-white rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 dark:bg-red-700 dark:hover:bg-red-800" on:click="{disconnectWallet}">
+          Reset Wallet
+        </button>
+      </div>
+    </div>
+  {/if}
 {/if}
 {#if showAuthModal}
   <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
