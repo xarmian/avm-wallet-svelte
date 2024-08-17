@@ -17,7 +17,7 @@
       throw new Error(`Wallet ${walletName} not found`);
     }
     await wallet.connect();
-    showWalletList.set(false);
+    //showWalletList.set(false);
   };
 
   const disconnectWallet = async () => {
@@ -32,7 +32,7 @@
 
   const selectDefaultWallet = async (addr: string) => {
     selectedWalletStore.set({ app: walletName, address: addr });
-    showWalletList.set(false);
+    //showWalletList.set(false);
   };
 
   const authenticateWallet = async (addr: string) => {
