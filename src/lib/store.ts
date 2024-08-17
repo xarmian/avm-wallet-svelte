@@ -153,3 +153,4 @@ export const selectedWallet: SelectedWalletStore = createSelectedWalletStore();
 export const showWalletList = writable(false);
 export type { AVMWalletStore, SelectedWalletStore };
 export const ProviderStore = writable<{ algodClient: Algodv2 | undefined, indexerClient: Indexer | undefined }>({ algodClient: undefined, indexerClient: undefined });
+export const wcProjectIdStore = writable('');

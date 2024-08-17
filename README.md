@@ -72,9 +72,10 @@ import { WalletOptions } from 'avm-wallet-svelte';
 ### WalletConnect
 
 If using WalletConnect you must obtain a Project ID from WalletConnect at https://cloud.walletconnect.com.
-This must be set as an environment variable PUBLC_WALLETCONNECT_PROJECT_ID, i.e.
+This must be passed to the Web3Wallet component as argument `wcProjectId`, i.e.:
 
-PUBLIC_WALLETCONNECT_PROJECT_ID=abcdefghijklmnop
+const projectId = '[project id obtained from walletconnect cloud portal]';
+<Web3Wallet {algodClient} availableWallets={['PeraWallet','WalletConnect']} wcProjectId={projectId}>
 
 ### Stores
 This package utilizes stores to expose the list of connected wallets and the user's currently selected wallet,

@@ -2,11 +2,11 @@ import SignClient from "@walletconnect/sign-client";
 import type { SessionTypes } from "@walletconnect/types";
 import { getSdkError } from "@walletconnect/utils";
 import { WalletConnectModal as Web3Modal } from "@walletconnect/modal";
-import { connectedWallets } from "./store.js";
+import { connectedWallets, wcProjectIdStore } from "./store.js";
 import { type WalletConnectionResult } from "./wallets.js";
 import algosdk from "algosdk";
 import { Buffer } from "buffer";
-import { PUBLIC_WALLETCONNECT_PROJECT_ID as PROJECT_ID } from '$env/static/public';
+import { get } from "svelte/store";
 
 export const WalletName = "WalletConnect";
 
@@ -18,6 +18,8 @@ let subscribed = false;
 const CHAIN_ID = "algorand:IXnoWtviVVJW5LGivNFc0Dq14V3kqaXu";
 
 async function createSignClient() {
+    const PROJECT_ID = get(wcProjectIdStore);
+
     if (!PROJECT_ID) {
         throw new Error("Missing WalletConnect project ID");
     }
@@ -38,6 +40,8 @@ async function createSignClient() {
 }
 
 function createWeb3Modal() {
+    const PROJECT_ID = get(wcProjectIdStore);
+
     if (!web3Modal) {
         web3Modal = new Web3Modal({
             projectId: PROJECT_ID,
@@ -54,35 +58,32 @@ export async function connect(): Promise<WalletConnectionResult[] | null> {
         const client = await createSignClient();
         const modal = createWeb3Modal();
 
-        /*if (client.session) {
+        if (client.session && session) {
             if (client.session.keys.includes(session.topic)) {
                 return session.namespaces['algorand'].accounts.map((account) => {
                     const [, , address] = account.split(":");
                     return { address, app: WalletName };
                 });
             }
-        }*/
+        }
 
         const { uri, approval } = await client.connect({
             autoConnect: true,
-            /*requiredNamespaces: {
+            requiredNamespaces: {
                 algorand: {
-                    methods: ["algo_signTransaction"],
                     chains: [CHAIN_ID],
-                    events: ["connect", "disconnect"],
-                },
-            },*/
+                    methods: ["algo_signTxn"],
+                    events: []
+                }
+            }
         });
 
         if (uri) {
             await modal.openModal({ uri });
         }
-        console.log('aftermodal');
 
         session = await approval();
-        console.log(session);
         modal.closeModal();
-        console.log(session);
 
         return session.namespaces['algorand'].accounts.map((account) => {
             const [, , address] = account.split(":");
