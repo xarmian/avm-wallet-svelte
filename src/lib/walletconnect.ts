@@ -1,6 +1,6 @@
 import SignClient from "@walletconnect/sign-client";
 import type { SessionTypes } from "@walletconnect/types";
-import { getSdkError } from "@walletconnect/utils";
+// import { getSdkError } from "@walletconnect/utils";
 import { WalletConnectModal as Web3Modal } from "@walletconnect/modal";
 import { connectedWallets, wcProjectIdStore } from "./store.js";
 import { type WalletConnectionResult } from "./wallets.js";
@@ -116,7 +116,7 @@ export async function disconnect() {
     if (session && signClient) {
         await signClient.disconnect({
             topic: session.topic,
-            reason: getSdkError("USER_DISCONNECTED"),
+            // reason: getSdkError("USER_DISCONNECTED"),
         });
         session = null;
     }
