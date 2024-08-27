@@ -69,6 +69,17 @@ import { WalletOptions } from 'avm-wallet-svelte';
 <Web3Wallet availableWallets={[WalletOptions.PERA,WalletOptions.KIBISIS]} />
 ```
 
+### Watched Accounts
+
+Watched accounts are accounts that are not authenticated but are connected to the wallet.
+They are useful for watching transactions on the network without the need to authenticate.
+
+To enable watched accounts, pass `allowWatchAccounts={true}` to the Web3Wallet component.
+
+```
+<Web3Wallet allowWatchAccounts={true} />
+```
+
 ### WalletConnect
 
 If using WalletConnect you must obtain a Project ID from WalletConnect at https://cloud.walletconnect.com.

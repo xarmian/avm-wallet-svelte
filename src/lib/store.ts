@@ -16,7 +16,7 @@ export function setOnAuthHandler(newHandler: (wallet: WalletConnectionResult) =>
 }
 
 interface AVMWalletStore extends Writable<WalletConnectionResult[]> {
-  remove: (app: string) => void;
+  remove: (app: string, walletAddress?: string) => void;
   reset: () => void;
   add: (wallets: WalletConnectionResult[]) => void;
 }
@@ -83,13 +83,13 @@ function createWalletStore(): AVMWalletStore {
       localStorage
         .setItem(key, JSON.stringify(newWallets));
     },
-    remove: (app: string) => {
+    remove: (app: string, walletAddress?: string) => {
       const storedValue = get(connectedWallets);
       const oldWallets = storedValue.filter(wallet => wallet.app === app);
-      const newWallets = storedValue.filter(wallet => wallet.app !== app);
+      const newWallets = storedValue.filter(wallet => wallet.app !== app || (wallet.address !== walletAddress && wallet.app === 'Watch'));
       set(newWallets);
 
-      if (get(selectedWallet)?.app === app) {
+      if (get(selectedWallet)?.app === app && (get(selectedWallet)?.address === walletAddress || walletAddress === undefined)) {
         if (newWallets.length > 0) {
           selectedWallet.set(newWallets[0]);
         }

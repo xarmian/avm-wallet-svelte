@@ -15,6 +15,7 @@
     export let connectButtonType: string = 'wallet'; // static, wallet
     export let modalType: string = 'dropdown'; // modal, dropdown
     export let wcProjectId: string = '';
+    export let allowWatchAccounts: boolean = false;
 
     let showAuthModal = false;
     let walletAuthError = '';
@@ -104,8 +105,10 @@
                     {#if showAuthButtons && showAuthenticated}
                         {#if $selectedWallet.auth}
                             <div class="text-green-300 text-xs"> Authenticated</div>
-                        {:else}
+                        {:else if $selectedWallet.app !== Wallets.WATCH}
                             <div class="text-yellow-400 text-xs" on:click|stopPropagation={() => authenticateSelectedWallet()}> Click to Authenticate</div>
+                        {:else}
+                            <div class="text-red-300 text-xs"> Watch Account</div>
                         {/if}
                     {/if}
                 {:else}
@@ -127,7 +130,7 @@
     {#if $showWalletList}
         {#if modalType === 'dropdown'}
             <div class="walletListBox absolute right-0 w-72 z-50 {walletListClass}">
-                <WalletList showAuthButtons={showAuthButtons} availableWallets={availableWallets} />
+                <WalletList showAuthButtons={showAuthButtons} availableWallets={availableWallets} {allowWatchAccounts} />
             </div>
         {:else}
             <div class="fixed inset-0 flex items-center justify-center z-50">

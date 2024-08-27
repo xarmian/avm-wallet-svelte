@@ -22,10 +22,10 @@
     showAccountList = true;
   };
 
-  const disconnectWallet = async () => {
+  const disconnectWallet = async (walletAddress?: string) => {
     const wallet = wallets.find((w) => w.name === walletName);
     if (wallet && wallet.disconnect) {
-      wallet.disconnect();
+      wallet.disconnect(walletAddress);
     }
     else {
       throw new Error(`Wallet ${walletName} not found`);
@@ -86,14 +86,23 @@
       <img src="{wallet.icon}" alt="{wallet.name} icon" class="wallet-icon inline"> {wallet.name}
     </div>
     <div>
-      {#if $connectedWalletStore.filter((w) => w.app === walletName).length > 0 && modalType == 'dropdown'}
-        <button class="px-4 py-1 my-1 bg-red-500 text-white rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 dark:bg-red-700 dark:hover:bg-red-800" on:click="{disconnectWallet}">
-          Disconnect
+      {#if walletName == 'Watch'}
+        <button class="px-2 py-1 my-1 bg-green-500 text-white rounded-full hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 dark:bg-green-700 dark:hover:bg-green-800" on:click="{connectWallet}">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+          </svg>
+          Add Watch
         </button>
       {:else}
-        <button class="px-4 py-1 my-1 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 dark:bg-blue-700 dark:hover:bg-blue-800" on:click="{connectWallet}">
-          Connect
-        </button>
+        {#if $connectedWalletStore.filter((w) => w.app === walletName).length > 0 && modalType == 'dropdown'}
+          <button class="px-4 py-1 my-1 bg-red-500 text-white rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 dark:bg-red-700 dark:hover:bg-red-800" on:click={() => disconnectWallet()}>
+            Disconnect
+          </button>
+        {:else}
+          <button class="px-4 py-1 my-1 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 dark:bg-blue-700 dark:hover:bg-blue-800" on:click="{connectWallet}">
+            Connect
+          </button>
+        {/if}
       {/if}
     </div>
   </div>
@@ -105,15 +114,23 @@
             <button class="walletAddress p-2 rounded {$selectedWalletStore?.app == connectedWallet.app && $selectedWalletStore?.address == connectedWallet.address ? 'selected':''}" on:click={() => selectDefaultWallet(connectedWallet.address)}>
               {connectedWallet.address.slice(0, 8)}...{connectedWallet.address.slice(-8)}
             </button>
-            {#if showAuthButton}
-              {#if connectedWallet.auth}
-                <button class="p-2 text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 underline" on:click={() => logoutWallet(connectedWallet.app, connectedWallet.address)}>
-                  logout
-                </button>
+            {#if connectedWallet.watch}
+              <button class="p-2 text-red-600 hover:text-red-500 dark:text-red-400 dark:hover:text-red-300" on:click={() => disconnectWallet(connectedWallet.address)}>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" />
+                </svg>
+              </button>
+            {:else}
+              {#if showAuthButton}
+                {#if connectedWallet.auth}
+                  <button class="p-2 text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 underline" on:click={() => logoutWallet(connectedWallet.app, connectedWallet.address)}>
+                    logout
+                  </button>
               {:else}
-                <button class="p-2 text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 underline" on:click={() => authenticateWallet(connectedWallet.address)}>
-                  login
-                </button>
+                  <button class="p-2 text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 underline" on:click={() => authenticateWallet(connectedWallet.address)}>
+                    login
+                  </button>
+                {/if}
               {/if}
             {/if}
           </div>
@@ -140,7 +157,7 @@
             {/if}
           {/each}
         </div>
-        <button class="place-self-center px-4 py-1 my-1 bg-red-500 text-white rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 dark:bg-red-700 dark:hover:bg-red-800" on:click="{disconnectWallet}">
+        <button class="place-self-center px-4 py-1 my-1 bg-red-500 text-white rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 dark:bg-red-700 dark:hover:bg-red-800" on:click={() => disconnectWallet()}>
           Reset Wallet
         </button>
       </div>

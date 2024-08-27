@@ -15,6 +15,7 @@ import deflyWalletIcon from "./icons/defly_icon.svg";
 import kibisisWalletIcon from "./icons/kibisis_icon.svg";
 import luteWalletIcon from "./icons/lute_icon.png";
 import walletConnectIcon from "./icons/walletconnect-logo-black.svg";
+import watchWalletIcon from "./icons/watch_icon.png";
 import algosdk from "algosdk";
 import { Buffer } from "buffer";
 import { get } from "svelte/store";
@@ -25,6 +26,7 @@ export const Wallets = {
   KIBISIS: kibisisConnect.WalletName,
   LUTE: LuteConnect.WalletName,
   WALLETCONNECT: WalletConnect.WalletName,
+  WATCH: "Watch",
 }
 
 import * as ed from '@noble/ed25519';
@@ -35,7 +37,7 @@ export interface Wallet {
   name: string;
   icon: string;
   connect: () => Promise<WalletConnectionResult | null>;
-  disconnect?: () => void;
+  disconnect?: (walletAddress?: string) => void;
   signTxns?: (txns: algosdk.Transaction[][]) => Promise<Uint8Array[]>;
   signAndSendTxns?: (txns: algosdk.Transaction[][], algodClient?: algosdk.Algodv2) => Promise<boolean>;
   authenticate?: (wallet: string, algodClient?: algosdk.Algodv2) => Promise<void>;
@@ -46,9 +48,52 @@ export interface WalletConnectionResult {
   app: string;
   token?: string;
   auth?: boolean;
+  watch?: boolean;
 }
 
 export const wallets: Wallet[] = [
+  {
+    name: Wallets.WATCH,
+    icon: watchWalletIcon,
+    connect: async () => {
+      // prompt user to connect to watched account
+      const address = prompt("Enter the address of the watched account");
+      if (address) {
+        if (algosdk.isValidAddress(address)) {
+          const wallet: WalletConnectionResult = {
+            address: address,
+            app: Wallets.WATCH,
+            watch: true,
+          };
+          
+          // add watched account to connectedWallets store
+          connectedWallets.add([wallet]);
+
+          // add watched account to connectedWallets store
+          return Promise.resolve(wallet);
+        }
+        else {
+          alert("Invalid Algorand address");
+        }
+      }
+      return Promise.resolve(null);
+    },
+    disconnect: (walletAddress?: string) => {
+      connectedWallets.remove(Wallets.WATCH, walletAddress);
+    },
+    signTxns: async () => {
+      alert("Watched accounts do not support signing transactions");
+      return Promise.resolve([]);
+    },
+    signAndSendTxns: async () => {
+      alert("Watched accounts do not support signing transactions");
+      return Promise.resolve(false);
+    },
+    authenticate: async () => {
+      alert("Watched accounts do not support authentication");
+      return Promise.resolve();
+    }
+  },
   {
     name: Wallets.PERA,
     icon: peraWalletIcon,

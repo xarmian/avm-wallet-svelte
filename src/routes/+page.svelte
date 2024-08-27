@@ -7,6 +7,7 @@
     import { get } from 'svelte/store';
     import type { Transaction } from 'algosdk';
     import { PUBLIC_WALLETCONNECT_PROJECT_ID as PROJECT_ID } from '$env/static/public';
+    import { onDestroy } from 'svelte';
     
     const server = 'https://testnet-api.voi.nodly.io';
     //const server = "https://testnet-api.algonode.cloud"
@@ -26,8 +27,12 @@
         return Buffer.from(algosdk.encodeUnsignedTransaction(t)).toString('base64');
     };
 
-    selectedWallet.subscribe((wallet) => {
+    const sub = selectedWallet.subscribe((wallet) => {
         console.log('sub',wallet);
+    });
+
+    onDestroy(() => {
+        sub();
     });
 
     setOnAddHandler(async (wallet) => {
@@ -72,7 +77,7 @@
 </script>
 
 <div class="m-20 p-4 rounded-xl border border-red-800 border-solid text-sm w-72">
-    <Web3Wallet showAuthButtons={true} algodClient={algodClient} wcProjectId={PROJECT_ID} modalType="modal" connectButtonType="static" flow="login" />
+    <Web3Wallet showAuthButtons={true} algodClient={algodClient} wcProjectId={PROJECT_ID} allowWatchAccounts={true} />
     <button on:click={signTxn} class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded shadow-lg">
         Sign Tx
     </button>
