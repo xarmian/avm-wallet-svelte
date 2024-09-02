@@ -95,20 +95,20 @@
 </script>
 
 <!-- svelte-ignore a11y-click-events-have-key-events -->
-<div class="flex flex-col relative" on:click|stopPropagation>
+<div class="flex flex-col relative dark:text-white" on:click|stopPropagation>
         <button class="flex justify-between items-center bg-blue-500 hover:bg-blue-700 text-white text-sm font-bold py-0 h-10 px-4 rounded shadow-lg" on:click={showWalletListHandler}>
             <span class="text-center flex-grow ml-8">
                 {#if $selectedWallet?.address && connectButtonType === 'wallet'}
                     <div>
                         {$selectedWallet.address.slice(0, 6)}...{$selectedWallet.address.slice(-6)}
                     </div>
-                    {#if showAuthButtons && showAuthenticated}
+                    {#if $selectedWallet.app === Wallets.WATCH}
+                        <div class="text-red-300 text-xs"> Watch Account</div>
+                    {:else if showAuthButtons && showAuthenticated}
                         {#if $selectedWallet.auth}
                             <div class="text-green-300 text-xs"> Authenticated</div>
                         {:else if $selectedWallet.app !== Wallets.WATCH}
                             <div class="text-yellow-400 text-xs" on:click|stopPropagation={() => authenticateSelectedWallet()}> Click to Authenticate</div>
-                        {:else}
-                            <div class="text-red-300 text-xs"> Watch Account</div>
                         {/if}
                     {/if}
                 {:else}
