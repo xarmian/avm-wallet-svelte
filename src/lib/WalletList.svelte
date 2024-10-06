@@ -4,20 +4,29 @@
 
     export let showAuthButtons: boolean = false;
     export let availableWallets: string[];
-    export let modalType: string = 'dropdown'; // modal, dropdown
+    export let modalType: string = 'dropdown';
     export let allowWatchAccounts: boolean = false;
 
     const filteredWallets = wallets.filter(wallet => wallet.name !== 'Watch');
 </script>
-{#each filteredWallets as wallet}
-    {#if availableWallets.includes(wallet.name)}
-        <div class="p-1">
-            <WalletSelectButton walletName={wallet.name} showAuthButton={showAuthButtons} {modalType}/>
+
+<div class="space-y-1">
+    {#each filteredWallets as wallet}
+        {#if availableWallets.includes(wallet.name)}
+            <div class="wallet-item">
+                <WalletSelectButton walletName={wallet.name} showAuthButton={showAuthButtons} {modalType}/>
+            </div>
+        {/if}
+    {/each}
+    {#if allowWatchAccounts}
+        <div class="wallet-item">
+            <WalletSelectButton walletName="Watch" showAuthButton={false} {modalType}/>
         </div>
     {/if}
-{/each}
-{#if allowWatchAccounts}
-    <div class="p-1">
-        <WalletSelectButton walletName="Watch" showAuthButton={false} {modalType}/>
-    </div>
-{/if}
+</div>
+
+<style>
+    .wallet-item {
+        @apply py-0.5;
+    }
+</style>
