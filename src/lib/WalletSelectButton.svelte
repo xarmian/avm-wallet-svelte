@@ -111,7 +111,7 @@
           {#if connectedWallet.address}
             <div class="flex items-center justify-between py-1 text-sm">
               <button class="flex-grow text-left truncate {$selectedWalletStore?.app == connectedWallet.app && $selectedWalletStore?.address == connectedWallet.address ? 'font-bold':''}" on:click={() => selectDefaultWallet(connectedWallet.address)}>
-                {connectedWallet.address.slice(0, 6)}...{connectedWallet.address.slice(-4)}
+                {connectedWallet.address.slice(0, 10)}...{connectedWallet.address.slice(-10)}
               </button>
               <div class="flex items-center">
                 {#if connectedWallet.watch}

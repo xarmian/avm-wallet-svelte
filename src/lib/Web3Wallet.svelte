@@ -96,7 +96,7 @@
 
 <button class="flex flex-col relative dark:text-white" on:click|stopPropagation>
     <button class="flex justify-between items-center bg-blue-500 hover:bg-blue-700 text-white text-sm font-bold py-0 h-10 px-4 rounded shadow-lg" on:click={showWalletListHandler}>
-        <span class="text-center flex-grow mx-8">
+        <span class="text-center flex-grow mx-8 flex items-center">
             {#if $selectedWallet?.address && connectButtonType === 'wallet'}
                 <div>
                     {$selectedWallet.address.slice(0, 6)}...{$selectedWallet.address.slice(-6)}
@@ -112,6 +112,9 @@
                 {/if}
             {:else}
                 Connect Wallet
+            {/if}
+            {#if modalType === 'dropdown'}
+                <i class="fa fa-caret-down ml-2"></i>
             {/if}
         </span>
         {#if connectButtonType === 'dropdown'}
