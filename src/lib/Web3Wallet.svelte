@@ -1,6 +1,6 @@
 <script lang="ts">
     import WalletList from './WalletList.svelte';
-    import { selectedWallet, showWalletList, ProviderStore, connectedWallets as connectedWalletStore, wcProjectIdStore } from './store.js';
+    import { selectedWallet, showWalletList, ProviderStore, connectedWallets as connectedWalletStore, wcProjectStore } from './store.js';
     import { onMount } from 'svelte';
     import type { Algodv2, Indexer } from 'algosdk';
     import { wallets, Wallets, verifyToken } from './wallets.js';
@@ -14,7 +14,7 @@
     export let showAuthenticated: boolean = true;
     export let connectButtonType: string = 'wallet'; // static, wallet
     export let modalType: string = 'dropdown'; // modal, dropdown
-    export let wcProjectId: string = '';
+    export let wcProject: { projectId: string, projectName: string, projectDescription: string, projectUrl: string, projectIcons: string[] } = { projectId: '', projectName: '', projectDescription: '', projectUrl: '', projectIcons: [] };
     export let allowWatchAccounts: boolean = false;
 
     let showAuthModal = false;
@@ -26,7 +26,7 @@
         }
     };
 
-    wcProjectIdStore.set(wcProjectId);
+    wcProjectStore.set(wcProject);
  
     onMount(() => {
         ProviderStore.set({ algodClient, indexerClient });

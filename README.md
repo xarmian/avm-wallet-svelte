@@ -86,7 +86,13 @@ If using WalletConnect you must obtain a Project ID from WalletConnect at https:
 This must be passed to the Web3Wallet component as argument `wcProjectId`, i.e.:
 
 const projectId = '[project id obtained from walletconnect cloud portal]';
-<Web3Wallet {algodClient} availableWallets={['PeraWallet','WalletConnect']} wcProjectId={projectId}>
+<Web3Wallet {algodClient} availableWallets={['PeraWallet','WalletConnect']} wcProject={{
+    projectId: '<project id from walletconnect cloud portal>',
+    projectName: '<project name>',
+    projectDescription: '<project description>',
+    projectUrl: '<project url>',
+    projectIcons: ['<icon url>']
+}}>
 
 ### Stores
 This package utilizes stores to expose the list of connected wallets and the user's currently selected wallet,

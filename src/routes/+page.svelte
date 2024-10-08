@@ -11,11 +11,13 @@
     
     const server = 'https://testnet-api.voi.nodly.io';
     //const server = "https://testnet-api.algonode.cloud"
+    //const server = 'https://mainnet-api.voi.nodely.dev'
     const port = '443';
     const token = '';
 
     // Algorand indexer settings
     const indexerServer = 'https://testnet-idx.voi.nodly.io';
+    //const indexerServer = 'https://mainnet-idx.voi.nodely.dev';
     const indexerPort = '443';
     const indexerToken = '';
 
@@ -77,7 +79,13 @@
 </script>
 
 <div class="m-20 p-4 rounded-xl border border-red-800 border-solid text-sm w-72">
-    <Web3Wallet showAuthButtons={false} algodClient={algodClient} wcProjectId={PROJECT_ID} allowWatchAccounts={true} />
+    <Web3Wallet showAuthButtons={true} algodClient={algodClient} wcProject={{
+        projectId: PROJECT_ID,
+        projectName: 'Voi Rewards Auditor',
+        projectDescription: 'Voi Rewards Auditor',
+        projectUrl: 'https://voirewards.com',
+        projectIcons: ['https://voirewards.com/android-chrome-192x192.png']
+    }} allowWatchAccounts={true} />
     <button on:click={signTxn} class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded shadow-lg">
         Sign Tx
     </button>

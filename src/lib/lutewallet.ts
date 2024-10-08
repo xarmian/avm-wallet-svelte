@@ -2,14 +2,14 @@ import { connectedWallets } from "./store.js";
 import { type WalletConnectionResult } from "./wallets.js";
 import algosdk from "algosdk";
 import { Buffer } from "buffer";
-import { browser } from "$app/environment";
+import { BROWSER } from "esm-env";
 
 export const WalletName = "LuteWallet";
 
 let wallet: any = null;
 
 export async function initWallet() {
-    const LuteConnect = (browser) ? await import("lute-connect") : null;
+    const LuteConnect = (BROWSER) ? await import("lute-connect") : null;
     wallet = LuteConnect ? new LuteConnect.default('avm-wallet-svelte') : null;
 }
 
@@ -35,9 +35,7 @@ export async function signAndSendTransactions(
     client: algosdk.Algodv2,
     txnGroups: algosdk.Transaction[][]
 ) {
-    console.log('txnGroups',txnGroups);
     const signed = await signTransactions(txnGroups);
-    console.log('signed',signed);
 
     const groups = txnGroups.map((group) => {
         return <Uint8Array[]>group

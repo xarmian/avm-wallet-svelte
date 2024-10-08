@@ -1,7 +1,7 @@
 import { connectedWallets } from "./store.js";
 import { type WalletConnectionResult } from "./wallets.js";
 import algosdk from "algosdk";
-import { browser } from "$app/environment";
+import { BROWSER } from "esm-env";
 import { Buffer } from 'buffer';
 import type { ISignBytesOptions, ISignTxnsOptions, ISignTxnsResult } from "@agoralabs-sh/algorand-provider";
 export const WalletName = "Kibisis";
@@ -39,7 +39,7 @@ export async function initWallet() {
 }
 
 export async function connect(): Promise<WalletConnectionResult[] | null> {
-    if (!browser) return null;
+    if (!BROWSER) return null;
     if (!window?.algorand) return null;
 
     try {
@@ -58,7 +58,7 @@ export function disconnect() {
 }
 
 export async function signTransactions(txnGroups: algosdk.Transaction[][]): Promise<Uint8Array[]> {
-    if (!browser) throw new Error('Browser not found');
+    if (!BROWSER) throw new Error('Browser not found');
     if (!window?.algorand) throw new Error('Kibisis wallet not found or enabled');
 
     const txns = txnGroups[0].map((txn) => {

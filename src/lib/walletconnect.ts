@@ -1,36 +1,64 @@
-import SignClient from "@walletconnect/sign-client";
-import type { SessionTypes } from "@walletconnect/types";
+//import SignClient from "@walletconnect/sign-client";
+import type { SessionTypes, ISignClient } from "@walletconnect/types";
 import { WalletConnectModal as Web3Modal } from "@walletconnect/modal";
-import { connectedWallets, wcProjectIdStore } from "./store.js";
+import { connectedWallets, wcProjectStore, ProviderStore } from "./store.js";
 import { type WalletConnectionResult } from "./wallets.js";
 import algosdk from "algosdk";
 import { Buffer } from "buffer";
 import { get } from "svelte/store";
+import { BROWSER } from "esm-env";
 
 export const WalletName = "WalletConnect";
 
-let signClient: typeof SignClient | null = null;
+let signClient: typeof ISignClient | null = null;
 let session: SessionTypes.Struct | null = null;
 let web3Modal: Web3Modal | null = null;
 let subscribed = false;
 
-const CHAIN_ID = "algorand:IXnoWtviVVJW5LGivNFc0Dq14V3kqaXu";
+// const CHAIN_ID = "algorand:IXnoWtviVVJW5LGivNFc0Dq14V3kqaXu";
+// "IXnoWtviVVJW5LGivNFc0Dq14V3kqaXuK2u5OQrdVZo="
+let CHAIN_ID: string | null = null;
+
+async function getGenesisHash(algodClient: algosdk.Algodv2) {
+    try {
+        const params = await algodClient.getTransactionParams().do();
+        return params.genesisHash.substring(0, 32).replaceAll('/', '_');
+    } catch (error) {
+        console.error("An error occurred:", error);
+        return null;
+    }
+}
 
 async function createSignClient() {
-    const PROJECT_ID = get(wcProjectIdStore);
+    const wcProject = get(wcProjectStore);
+    const PROJECT_ID = wcProject.projectId;
 
     if (!PROJECT_ID) {
         throw new Error("Missing WalletConnect project ID");
     }
 
+    const providerStoreValue = get(ProviderStore);
+    if (!providerStoreValue.algodClient) {
+        return null;
+    }
+
+    const genesisHash = await getGenesisHash(providerStoreValue.algodClient);
+
+    if (!genesisHash) {
+      throw new Error("Genesis ID not found: algodClient handle needed to connect to WalletConnect");
+    }
+
+    CHAIN_ID = 'algorand:' + genesisHash;
+
     if (!signClient) {
-        signClient = await SignClient.init({
+        const SignClient = (BROWSER) ? await import("@walletconnect/sign-client") : null;
+        signClient = await SignClient.default.init({
             projectId: PROJECT_ID,
             metadata: {
-                name: "Voirewards.com",
-                description: "Voi Rewards Auditor",
-                url: "https://voirewards.com",
-                icons: ["https://voirewards.com/android-chrome-192x192.png"],
+                name: wcProject.projectName,
+                description: wcProject.projectDescription,
+                url: wcProject.projectUrl,
+                icons: wcProject.projectIcons,
             },
         });
         await subscribeToEvents(signClient);
@@ -39,7 +67,8 @@ async function createSignClient() {
 }
 
 function createWeb3Modal() {
-    const PROJECT_ID = get(wcProjectIdStore);
+    const wcProject = get(wcProjectStore);
+    const PROJECT_ID = wcProject.projectId;
 
     if (!web3Modal) {
         web3Modal = new Web3Modal({
@@ -94,7 +123,7 @@ export async function connect(): Promise<WalletConnectionResult[] | null> {
     return null;
 }
 
-async function subscribeToEvents(client: typeof SignClient) {
+async function subscribeToEvents(client: typeof ISignClient) {
     if (!client)
       throw Error("Unable to subscribe to events. Client does not exist.");
     if (subscribed) return;
