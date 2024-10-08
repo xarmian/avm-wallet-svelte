@@ -289,6 +289,7 @@ export const wallets: Wallet[] = [
 
       const genesisID = genesis.network + '-' + genesis.id;
 
+      await LuteConnect.initWallet();
       const wallets = await LuteConnect.connect(genesisID);
       if (wallets) {
         connectedWallets.add(wallets);

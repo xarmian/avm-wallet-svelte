@@ -1,17 +1,16 @@
 import { connectedWallets } from "./store.js";
 import { type WalletConnectionResult } from "./wallets.js";
-import { BROWSER } from "esm-env";
 import algosdk from "algosdk";
-import kibisisClient from '@agoralabs-sh/algorand-provider';
+import { browser } from "$app/environment";
 import { Buffer } from 'buffer';
-
+import type { ISignBytesOptions, ISignTxnsOptions, ISignTxnsResult } from "@agoralabs-sh/algorand-provider";
 export const WalletName = "Kibisis";
 
 declare global {
     interface Window { algorand: {
             enable: () => Promise<WalletConnectResponse>;
-            signBytes: (options: kibisisClient.ISignBytesOptions) => Promise<Uint8Array[]>;
-            signTxns: (options: kibisisClient.ISignTxnsOptions) => Promise<kibisisClient.ISignTxnsResult>;
+            signBytes: (options: ISignBytesOptions) => Promise<Uint8Array[]>;
+            signTxns: (options: ISignTxnsOptions) => Promise<ISignTxnsResult>;
         }; 
     }
 }
@@ -34,8 +33,13 @@ interface WalletConnectResponse {
     sessionId: string;
 }
 
+export async function initWallet() {
+    //const KibisisClient = (browser) ? await import("@agoralabs-sh/algorand-provider") : null;
+    //wallet = KibisisClient ? new KibisisClient.default() : null;
+}
+
 export async function connect(): Promise<WalletConnectionResult[] | null> {
-    if (!BROWSER) return null;
+    if (!browser) return null;
     if (!window?.algorand) return null;
 
     try {
@@ -54,7 +58,7 @@ export function disconnect() {
 }
 
 export async function signTransactions(txnGroups: algosdk.Transaction[][]): Promise<Uint8Array[]> {
-    if (!BROWSER) throw new Error('Browser not found');
+    if (!browser) throw new Error('Browser not found');
     if (!window?.algorand) throw new Error('Kibisis wallet not found or enabled');
 
     const txns = txnGroups[0].map((txn) => {

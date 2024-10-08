@@ -1,13 +1,17 @@
-import LuteConnect from "lute-connect";
 import { connectedWallets } from "./store.js";
 import { type WalletConnectionResult } from "./wallets.js";
 import algosdk from "algosdk";
 import { Buffer } from "buffer";
+import { browser } from "$app/environment";
 
 export const WalletName = "LuteWallet";
 
-//@ts-expect-error - LuteConnect default import issue
-const wallet = (LuteConnect.default) ? new LuteConnect.default('avm-wallet-svelte') : new LuteConnect('avm-wallet-svelte');
+let wallet: any = null;
+
+export async function initWallet() {
+    const LuteConnect = (browser) ? await import("lute-connect") : null;
+    wallet = LuteConnect ? new LuteConnect.default('avm-wallet-svelte') : null;
+}
 
 export async function connect(genesisID: string): Promise<WalletConnectionResult[] | null> {
     try {
