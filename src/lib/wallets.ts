@@ -16,6 +16,7 @@ import kibisisWalletIcon from "./icons/kibisis_icon.svg";
 import luteWalletIcon from "./icons/lute_icon.png";
 import walletConnectIcon from "./icons/walletconnect-logo-black.svg";
 import watchWalletIcon from "./icons/watch_icon.png";
+import biatecWalletIcon from "./icons/biatec_icon.svg";
 import algosdk from "algosdk";
 import { Buffer } from "buffer";
 import { get } from "svelte/store";
@@ -25,6 +26,7 @@ export const Wallets = {
   DEFLY: deflyConnect.WalletName,
   KIBISIS: kibisisConnect.WalletName,
   LUTE: LuteConnect.WalletName,
+  BIATEC: 'Biatec Wallet',
   WALLETCONNECT: WalletConnect.WalletName,
   WATCH: "Watch",
 }
@@ -338,6 +340,63 @@ export const wallets: Wallet[] = [
     }
   },
   {
+    name: Wallets.BIATEC,
+    icon: biatecWalletIcon,
+    connect: async () => {
+      const wallets = await WalletConnect.connect();
+      if (wallets) {
+        connectedWallets.add(wallets);
+        return Promise.resolve(wallets[0]);
+      }
+      else {
+        return Promise.resolve(null);
+      }
+    },
+    disconnect: () => {
+      WalletConnect.disconnect();
+    },
+    signTxns: async (txns: algosdk.Transaction[][]) => {
+      await WalletConnect.connect();
+      return await WalletConnect.signTransactions(txns);
+    },
+    signAndSendTxns: async (txns: algosdk.Transaction[][], algodClient?: algosdk.Algodv2) => {
+      const providerStoreValue = get(ProviderStore);
+      if (!algodClient) {
+        algodClient = providerStoreValue.algodClient;
+      }
+
+      if (!algodClient) {
+        throw new Error("Algod client not available");
+      }
+      await WalletConnect.connect();
+      return await WalletConnect.signAndSendTransactions(algodClient, txns);
+    },
+    authenticate: async (wallet: string, algodClient?: algosdk.Algodv2) => {
+      const authTx = await draftAuthTx(wallet, algodClient);
+
+      if (!await WalletConnect.connect()) {
+        throw new Error("Could not connect to WalletConnect Wallet.");
+      }
+
+      const signedTxn = await WalletConnect.signTransactions([[authTx]]);
+
+      // base64 encode using buffer
+      const token = Buffer.from(signedTxn[0]).toString("base64");
+
+      if (await verifyToken(wallet, token)) {
+        // store token in connectedWallets store under the wallet's address as property "token"
+        connectedWallets.update((wallets) => {
+          return wallets.map((w) => {
+            if (w.app === Wallets.WALLETCONNECT && w.address === wallet) {
+              w.token = token;
+            }
+            return w;
+          });
+        });
+      }
+    }
+  },
+  {
     name: Wallets.WALLETCONNECT,
     icon: walletConnectIcon,
     connect: async () => {
@@ -376,13 +435,6 @@ export const wallets: Wallet[] = [
         throw new Error("Could not connect to WalletConnect Wallet.");
       }
 
-      /*const txnToSign = [
-        {
-          txn: Buffer.from(algosdk.encodeUnsignedTransaction(authTx)).toString("base64"),
-          message: "This is a free transaction for authentication purposes and will be not broadcast to the network.",
-        },
-      ];*/
-    
       const signedTxn = await WalletConnect.signTransactions([[authTx]]);
 
       // base64 encode using buffer
@@ -424,8 +476,6 @@ async function draftAuthTx(wallet: string, algodClient?: algosdk.Algodv2): Promi
       fee: 0,
       firstRound: 10,
       flatFee: true,
-      //genesisHash: "wGHE2Pwdvd7S12BL5FaOP20EGYesN73ktiC1qzkkit8=",
-      //genesisID: "mainnet-v1.0",
       lastRound: 10,
       genesisHash: params.genesisHash,
       genesisID: params.genesisID,

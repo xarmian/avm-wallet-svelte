@@ -85,7 +85,10 @@
         projectDescription: 'Voi Rewards Auditor',
         projectUrl: 'https://voirewards.com',
         projectIcons: ['https://voirewards.com/android-chrome-192x192.png']
-    }} allowWatchAccounts={true} />
+    }} allowWatchAccounts={true}
+    modalType="modal"
+    connectButtonType="static"
+    />
     <button on:click={signTxn} class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded shadow-lg">
         Sign Tx
     </button>

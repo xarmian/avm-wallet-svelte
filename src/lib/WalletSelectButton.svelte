@@ -136,6 +136,41 @@
           {/if}
         {/each}
       </div>
+      {:else if showAccountList && $connectedWalletStore.filter((w) => w.app === walletName).length > 0}
+      <!-- svelte-ignore a11y-click-events-have-key-events -->
+      <div class="fixed inset-0 bg-black flex items-center justify-center">
+        <div class="flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden w-full max-w-xl mx-auto z-10">
+          <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Select Account</h2>
+            <button class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none" on:click={() => showAccountList = false}>
+              <i class="fa fa-close p-2 border border-black rounded-md">
+            </button>
+          </div>
+          <div class="p-4 pb-1">Click each account to authenticate</div>
+        
+          <div class="flex flex-col m-3">
+            {#each $connectedWalletStore.filter((w) => w.app === walletName) as connectedWallet}
+              {#if connectedWallet.address}
+                <button class="flex justify-between p-2 my-1 rounded w-full hover:bg-slate-200 dark:hover:bg-slate-500 bg-slate-100 dark:bg-slate-600" on:click={() => authenticateWallet(connectedWallet.address)}>
+                  {connectedWallet.address.slice(0, 8)}...{connectedWallet.address.slice(-8)}
+                  <span class="text-xs {connectedWallet.auth ? 'text-green-500' : 'text-red-500'}">
+                    {connectedWallet.auth ? 'Authenticated' : 'Not Authenticated'}
+                  </span>
+                </button>
+              {/if}
+            {/each}
+          </div>
+          {#if walletName != 'Kibisis'}
+          <button class="place-self-center px-4 py-1 my-1 bg-red-500 text-white rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 dark:bg-red-700 dark:hover:bg-red-800" on:click={() => disconnectWallet()}>
+            Reset Wallet
+          </button>
+          {:else}
+          <div class="p-2 text-center text-xs">
+              To change accounts, go to Kibisis Settings->Sessions->Voirewards, and click Manage
+            </div>
+          {/if}
+        </div>
+      </div>
     {/if}
   </div>
 {/if}
@@ -160,25 +195,10 @@
 {/if}
 
 <style>
-  .wallet-icon {
-    width: 28px;
-    height: 28px;
-    margin-right: 8px;
-    vertical-align: middle;
-  }
-  button {
-    display: flex;
-  }
-  .walletAddress:hover {
-    background-color: rgba(255,255,255,0.1);
-  }
-  .walletAddress.selected {
-    background-color: rgba(0, 255, 0, 0.3) !important;
-  }
-  .walletAddress.selected:dark {
-    background-color: rgba(255,255,255,0.2) !important;
-  }
-  .spinner {
+button {
+  display: flex;
+}
+.spinner {
   border: 16px solid #f3f3f3;
   border-top: 16px solid #3498db;
   border-radius: 50%;
@@ -186,7 +206,6 @@
   height: 120px;
   animation: spin 2s linear infinite;
 }
-
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }

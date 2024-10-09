@@ -15,8 +15,6 @@ let session: SessionTypes.Struct | null = null;
 let web3Modal: Web3Modal | null = null;
 let subscribed = false;
 
-// const CHAIN_ID = "algorand:IXnoWtviVVJW5LGivNFc0Dq14V3kqaXu";
-// "IXnoWtviVVJW5LGivNFc0Dq14V3kqaXuK2u5OQrdVZo="
 let CHAIN_ID: string | null = null;
 
 async function getGenesisHash(algodClient: algosdk.Algodv2) {
