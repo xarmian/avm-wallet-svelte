@@ -82,7 +82,7 @@
 
 {#if wallet}
   <div class="flex flex-col">
-    <div class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200">
+    <div class="flex items-center justify-between p-1 rounded-lg">
       <div class="flex items-center">
         <img src="{wallet.icon}" alt="{wallet.name} icon" class="w-6 h-6 mr-2">
         <span class="font-medium text-sm">{wallet.name}</span>
@@ -109,13 +109,13 @@
       <div class="ml-8 mt-1">
         {#each $connectedWalletStore.filter((w) => w.app === walletName) as connectedWallet}
           {#if connectedWallet.address}
-            <div class="flex items-center justify-between py-1 text-sm">
-              <button class="flex-grow text-left truncate {$selectedWalletStore?.app == connectedWallet.app && $selectedWalletStore?.address == connectedWallet.address ? 'font-bold':''}" on:click={() => selectDefaultWallet(connectedWallet.address)}>
+            <div class="flex items-center justify-between text-sm">
+              <button class="flex-grow text-left truncate rounded-md hover:bg-gray-100 p-2 dark:hover:bg-gray-700 transition-colors duration-200 {$selectedWalletStore?.app == connectedWallet.app && $selectedWalletStore?.address == connectedWallet.address ? 'font-bold':''}" on:click={() => selectDefaultWallet(connectedWallet.address)}>
                 {connectedWallet.address.slice(0, 10)}...{connectedWallet.address.slice(-10)}
               </button>
               <div class="flex items-center">
                 {#if connectedWallet.watch}
-                  <button class="text-red-600 hover:text-red-500 dark:text-red-400 dark:hover:text-red-300 transition-colors duration-200 ml-2" on:click={() => disconnectWallet(connectedWallet.address)}>
+                  <button aria-label="Remove wallet" class="text-red-600 hover:text-red-500 dark:text-red-400 dark:hover:text-red-300 transition-colors duration-200 ml-2" on:click={() => disconnectWallet(connectedWallet.address)}>
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                       <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
                     </svg>
@@ -142,7 +142,7 @@
         <div class="flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden w-full max-w-xl mx-auto z-10">
           <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Select Account</h2>
-            <button class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none" on:click={() => showAccountList = false}>
+            <button aria-label="Close" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none" on:click={() => showAccountList = false}>
               <i class="fa fa-close p-2 border border-black rounded-md">
             </button>
           </div>

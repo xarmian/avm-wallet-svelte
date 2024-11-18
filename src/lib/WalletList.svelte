@@ -25,7 +25,7 @@
     {/if}
 </div>
 
-<style>
+<style lang="postcss">
     .wallet-item {
         @apply py-0.5;
     }

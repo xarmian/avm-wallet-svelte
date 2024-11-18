@@ -26,7 +26,7 @@ export const Wallets = {
   DEFLY: deflyConnect.WalletName,
   KIBISIS: kibisisConnect.WalletName,
   LUTE: LuteConnect.WalletName,
-  BIATEC: 'Biatec Wallet',
+  BIATEC: 'BiatecWallet',
   WALLETCONNECT: WalletConnect.WalletName,
   WATCH: "Watch",
 }
@@ -345,15 +345,18 @@ export const wallets: Wallet[] = [
     connect: async () => {
       const wallets = await WalletConnect.connect();
       if (wallets) {
-        connectedWallets.add(wallets);
-        return Promise.resolve(wallets[0]);
+        // replace the app for each wallet with Wallets.BIATEC
+        const updatedWallets = wallets.map((w) => ({ ...w, app: Wallets.BIATEC }));
+        connectedWallets.add(updatedWallets);
+        return Promise.resolve(updatedWallets[0]);
       }
       else {
         return Promise.resolve(null);
       }
     },
-    disconnect: () => {
-      WalletConnect.disconnect();
+    disconnect: async () => {
+      await WalletConnect.disconnect();
+      connectedWallets.remove(Wallets.BIATEC);
     },
     signTxns: async (txns: algosdk.Transaction[][]) => {
       await WalletConnect.connect();
@@ -387,7 +390,7 @@ export const wallets: Wallet[] = [
         // store token in connectedWallets store under the wallet's address as property "token"
         connectedWallets.update((wallets) => {
           return wallets.map((w) => {
-            if (w.app === Wallets.WALLETCONNECT && w.address === wallet) {
+            if (w.app === Wallets.BIATEC && w.address === wallet) {
               w.token = token;
             }
             return w;
@@ -409,8 +412,9 @@ export const wallets: Wallet[] = [
         return Promise.resolve(null);
       }
     },
-    disconnect: () => {
-      WalletConnect.disconnect();
+    disconnect: async () => {
+      await WalletConnect.disconnect();
+      connectedWallets.remove(Wallets.WALLETCONNECT);
     },
     signTxns: async (txns: algosdk.Transaction[][]) => {
       await WalletConnect.connect();

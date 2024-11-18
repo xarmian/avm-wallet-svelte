@@ -53,7 +53,6 @@ export async function connect(): Promise<WalletConnectionResult[] | null> {
 }
 
 export function disconnect() {
-    //wallet.disconnect();
     connectedWallets.remove(WalletName);
 }
 

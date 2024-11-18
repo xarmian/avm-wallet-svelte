@@ -149,7 +149,7 @@ export async function disconnect() {
     if (web3Modal) {
         web3Modal.closeModal();
     }
-    connectedWallets.remove(WalletName);
+    //connectedWallets.remove(WalletName);
 }
 
 export async function signAndSendTransactions(

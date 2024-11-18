@@ -7,17 +7,35 @@
     import { get } from 'svelte/store';
     import type { Transaction } from 'algosdk';
     import { PUBLIC_WALLETCONNECT_PROJECT_ID as PROJECT_ID } from '$env/static/public';
-    import { onDestroy } from 'svelte';
+    import { onDestroy, onMount } from 'svelte';
     
-    const server = 'https://testnet-api.voi.nodly.io';
+    // Add dark mode state
+    let darkMode = false;
+
+    // Initialize dark mode from localStorage on mount
+    onMount(() => {
+        darkMode = localStorage.getItem('darkMode') === 'true';
+        if (darkMode) {
+            document.documentElement.classList.add('dark');
+        }
+    });
+
+    // Toggle dark mode function
+    function toggleDarkMode() {
+        darkMode = !darkMode;
+        localStorage.setItem('darkMode', darkMode.toString());
+        document.documentElement.classList.toggle('dark');
+    }
+
+    //const server = 'https://testnet-api.voi.nodly.io';
     //const server = "https://testnet-api.algonode.cloud"
-    //const server = 'https://mainnet-api.voi.nodely.dev'
+    const server = 'https://mainnet-api.voi.nodely.dev'
     const port = '443';
     const token = '';
 
     // Algorand indexer settings
-    const indexerServer = 'https://testnet-idx.voi.nodly.io';
-    //const indexerServer = 'https://mainnet-idx.voi.nodely.dev';
+    //const indexerServer = 'https://testnet-idx.voi.nodly.io';
+    const indexerServer = 'https://mainnet-idx.voi.nodely.dev';
     const indexerPort = '443';
     const indexerToken = '';
 
@@ -77,19 +95,38 @@
     //console.log(getSelectedWalletToken());
 
 </script>
-
-<div class="m-20 p-4 rounded-xl border border-red-800 border-solid text-sm w-72">
-    <Web3Wallet showAuthButtons={true} algodClient={algodClient} wcProject={{
-        projectId: PROJECT_ID,
-        projectName: 'Voi Rewards Auditor',
-        projectDescription: 'Voi Rewards Auditor',
-        projectUrl: 'https://voirewards.com',
-        projectIcons: ['https://voirewards.com/android-chrome-192x192.png']
-    }} allowWatchAccounts={true}
-    modalType="modal"
-    connectButtonType="static"
-    />
-    <button on:click={signTxn} class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded shadow-lg">
-        Sign Tx
+<div class="min-h-screen bg-white dark:bg-gray-900 transition-colors duration-200 flex flex-col">
+    <button 
+        on:click={toggleDarkMode}
+        class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors duration-200 m-4 self-end"
+    >
+        {#if darkMode}
+            🌙
+        {:else}
+            ☀️
+        {/if}
     </button>
+
+    <div class="m-20 p-4 rounded-xl border border-red-800 border-solid text-sm w-72 bg-white dark:bg-gray-800 dark:text-white">
+        <Web3Wallet 
+            showAuthButtons={true} 
+            algodClient={algodClient} 
+            wcProject={{
+                projectId: PROJECT_ID,
+                projectName: 'Voi Rewards Auditor',
+                projectDescription: 'Voi Rewards Auditor',
+                projectUrl: 'https://voirewards.com',
+                projectIcons: ['https://voirewards.com/android-chrome-192x192.png']
+            }} 
+            allowWatchAccounts={true}
+            modalType="dropdown"
+            connectButtonType="wallet"
+        />
+        <button 
+            on:click={signTxn} 
+            class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded shadow-lg dark:bg-blue-600 dark:hover:bg-blue-800"
+        >
+            Sign Tx
+        </button>
+    </div>
 </div>
