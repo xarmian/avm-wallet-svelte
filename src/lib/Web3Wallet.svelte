@@ -99,19 +99,16 @@
 
 <div class="flex flex-col relative dark:text-white wallet-container">
     <div 
-        class="flex justify-between items-center bg-blue-500 hover:bg-blue-700 text-white text-sm font-bold py-0 h-10 px-4 rounded shadow-lg cursor-pointer" 
+        class="flex items-center justify-between bg-blue-500 hover:bg-blue-700 text-white text-sm font-bold py-0 h-10 px-4 rounded shadow-lg cursor-pointer" 
         on:click|stopPropagation={showWalletListHandler}
         on:keydown={(e) => handleKeydown(e, () => closeWalletList(e))}
         role="button"
         tabindex="0"
     >
-        <span class="text-center flex-grow mx-8">
+        <span class="flex-grow text-center ml-8">
             {#if $selectedWallet?.address && connectButtonType === 'wallet'}
-                <div class="flex items-center">
-                    <div>{$selectedWallet.address.slice(0, 6)}...{$selectedWallet.address.slice(-6)}</div>
-                    {#if modalType === 'dropdown'}
-                    <i class="fa fa-caret-down ml-2"></i>
-                    {/if}
+                <div>
+                    {$selectedWallet.address.slice(0, 6)}...{$selectedWallet.address.slice(-6)}
                 </div>
                 {#if $selectedWallet.app === Wallets.WATCH}
                     <div class="text-red-300 text-xs"> Watch Account</div>
@@ -135,15 +132,13 @@
             {/if}
         </span>
         {#if connectButtonType === 'wallet'}
-            {#if !$showWalletList}
-                <svg class="h-6 w-6 ml-2" fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <svg class="h-6 w-6 ml-2" fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                {#if !$showWalletList}
                     <path d="M7 10l5 5 5-5z" />
-                </svg>
-            {:else}
-                <svg class="h-6 w-6 inline-block ml-2" fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                {:else}
                     <path d="M19 14l-5-5-5 5z" />
-                </svg>
-            {/if}
+                {/if}
+            </svg>
         {/if}
     </div>
 
