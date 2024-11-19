@@ -1,10 +1,11 @@
 <script lang="ts">
     import WalletList from './WalletList.svelte';
-    import { selectedWallet, showWalletList, ProviderStore, connectedWallets as connectedWalletStore, wcProjectStore } from './store.js';
+    import { selectedWallet, showWalletList, ProviderStore, connectedWallets as connectedWalletStore, wcProjectStore, authModalStore } from './store.js';
     import { onMount } from 'svelte';
     import type { Algodv2, Indexer } from 'algosdk';
-    import { wallets, Wallets, verifyToken } from './wallets.js';
+    import { verifyToken, wallets, Wallets } from './wallets.js';
     import Cookies from 'js-cookie';
+    import AuthModal from './AuthModal.svelte';
 
     export let algodClient: Algodv2 | undefined = undefined;
     export let indexerClient: Indexer | undefined = undefined;
@@ -17,17 +18,14 @@
     export let wcProject: { projectId: string, projectName: string, projectDescription: string, projectUrl: string, projectIcons: string[] } = { projectId: '', projectName: '', projectDescription: '', projectUrl: '', projectIcons: [] };
     export let allowWatchAccounts: boolean = false;
 
-    let showAuthModal = false;
-    let walletAuthError = '';
-
+    wcProjectStore.set(wcProject);
+ 
     const closeWalletList = (event: any) => {
         if (!event.target.closest('.wallet-list')) {
             showWalletList.set(false);
         }
     };
 
-    wcProjectStore.set(wcProject);
- 
     onMount(() => {
         ProviderStore.set({ algodClient, indexerClient });
 
@@ -41,20 +39,17 @@
     });
 
     const validateWallets = async () => {
-        const walletsToTest = $connectedWalletStore.filter((w) => w.auth === true)
+        const walletsToTest = $connectedWalletStore.filter((w) => w.auth === true);
         for (const w of walletsToTest) {
             try {
-                // get token from cookie avm-wallet-token-<address>
                 const token = Cookies.get(`avm-wallet-token-${w.address}`);
-                if (token) {
-                    if (await verifyToken(w.address, token)) continue;
+                if (token && await verifyToken(w.address, token)) {
+                    continue;
                 }
-            }
-            catch (e) {
-                console.error('Invalid authe token for wallet ', w.address);
+            } catch (e) {
+                console.error('Invalid auth token for wallet ', w.address);
             }
 
-            // update auth property from wallet with address "w.address" and app "w.app" in connectedWalletStore using update method
             connectedWalletStore.update((wallets) => {
                 return wallets.map((wallet) => {
                     if (wallet.app === w.app && wallet.address === w.address) {
@@ -71,17 +66,16 @@
         if (sWallet) {
             const wallet = wallets.find((w) => w.name === sWallet.app);
             if (wallet && wallet.authenticate) {
-            walletAuthError = '';
-            showAuthModal = true;
+                authModalStore.set({ show: true, error: '', address: sWallet.address });
 
-            try {
-                await wallet.authenticate(sWallet.address);
-                showAuthModal = false;
-            }
-            catch (e: any) {
-                console.error('err',e);
-                walletAuthError = e.message;
-            }
+                try {
+                    await wallet.authenticate(sWallet.address);
+                    authModalStore.set({ show: false, error: '', address: '' });
+                }
+                catch (e: any) {
+                    console.error('err',e);
+                    authModalStore.update(state => ({ ...state, error: e.message }));
+                }
             }
             else {
                 throw new Error(`Wallet ${sWallet.app} not found`);
@@ -100,6 +94,8 @@
         }
     };
 </script>
+
+<AuthModal />
 
 <div class="flex flex-col relative dark:text-white wallet-container">
     <div 
@@ -120,7 +116,7 @@
                 {#if $selectedWallet.app === Wallets.WATCH}
                     <div class="text-red-300 text-xs"> Watch Account</div>
                 {:else if showAuthButtons && showAuthenticated}
-                    {#if $selectedWallet.auth}
+                    {#if $connectedWalletStore.find((w) => w.address === $selectedWallet.address && w.app === $selectedWallet.app)?.auth}
                         <div class="text-green-300 text-xs"> Authenticated</div>
                     {:else if $selectedWallet.app !== Wallets.WATCH}
                         <div 
@@ -184,25 +180,6 @@
         {/if}
     {/if}
 </div>
-{#if showAuthModal}
-  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-    <div class="bg-white dark:bg-gray-500 p-4 rounded-lg relative">
-      <h2 class="text-lg font-bold">Authenticate Wallet</h2>
-      <p>A zero-cost transaction has been sent to your wallet for signing.</p>
-      <p>This transaction will not be broadcast to the network and has no cost.</p>
-      <p>Please sign the transaction to authenticate.</p>
-      {#if walletAuthError == ''}
-        <div class="flex justify-center">
-          <div class="spinner"></div>
-        </div>
-      {:else}
-        <p class="text-red-600 flex justify-center m-4">{walletAuthError}</p>
-      {/if}
-      <button class="absolute top-0 right-0 p-2" on:click={() => showAuthModal = false}>X</button>
-      <button class="absolute bottom-0 right-0 p-2" on:click={() => showAuthModal = false}>Cancel</button>
-    </div>
-  </div>
-{/if}
 <style>
     .walletListBox {
         top: 2.5rem;

@@ -301,13 +301,18 @@ export const wallets: Wallet[] = [
         return Promise.resolve(null);
       }
     },
-    disconnect: () => {
+    disconnect: async () => {
+      await LuteConnect.initWallet();
+
       LuteConnect.disconnect();
     },
     signTxns: async (txns: algosdk.Transaction[][]) => {
+      await LuteConnect.initWallet();
       return await LuteConnect.signTransactions(txns);
     },
     signAndSendTxns: async (txns: algosdk.Transaction[][], algodClient?: algosdk.Algodv2) => {
+      await LuteConnect.initWallet();
+
       const providerStoreValue = get(ProviderStore);
       if (!algodClient) {
         algodClient = providerStoreValue.algodClient;
@@ -320,6 +325,8 @@ export const wallets: Wallet[] = [
       return await LuteConnect.signAndSendTransactions(algodClient, txns);
     },
     authenticate: async (wallet: string, algodClient?: algosdk.Algodv2) => {
+      await LuteConnect.initWallet();
+      
       const authTx = await draftAuthTx(wallet, algodClient);
       const signedTxn = await LuteConnect.signTransactions([[authTx]]);
 
@@ -345,21 +352,20 @@ export const wallets: Wallet[] = [
     connect: async () => {
       const wallets = await WalletConnect.connect();
       if (wallets) {
-        // replace the app for each wallet with Wallets.BIATEC
-        const updatedWallets = wallets.map((w) => ({ ...w, app: Wallets.BIATEC }));
-        connectedWallets.add(updatedWallets);
-        return Promise.resolve(updatedWallets[0]);
+        connectedWallets.add(wallets);
+        return Promise.resolve(wallets[0]);
       }
-      else {
-        return Promise.resolve(null);
-      }
+      return Promise.resolve(null);
     },
     disconnect: async () => {
       await WalletConnect.disconnect();
       connectedWallets.remove(Wallets.BIATEC);
     },
     signTxns: async (txns: algosdk.Transaction[][]) => {
-      await WalletConnect.connect();
+      // Only connect if there's no active session
+      if (!await WalletConnect.hasActiveSession()) {
+        await WalletConnect.connect();
+      }
       return await WalletConnect.signTransactions(txns);
     },
     signAndSendTxns: async (txns: algosdk.Transaction[][], algodClient?: algosdk.Algodv2) => {
@@ -371,14 +377,20 @@ export const wallets: Wallet[] = [
       if (!algodClient) {
         throw new Error("Algod client not available");
       }
-      await WalletConnect.connect();
+      // Only connect if there's no active session
+      if (!await WalletConnect.hasActiveSession()) {
+        await WalletConnect.connect();
+      }
       return await WalletConnect.signAndSendTransactions(algodClient, txns);
     },
     authenticate: async (wallet: string, algodClient?: algosdk.Algodv2) => {
       const authTx = await draftAuthTx(wallet, algodClient);
 
-      if (!await WalletConnect.connect()) {
-        throw new Error("Could not connect to WalletConnect Wallet.");
+      // Only connect if there's no active session
+      if (!await WalletConnect.hasActiveSession()) {
+        if (!await WalletConnect.connect()) {
+          throw new Error("Could not connect to WalletConnect Wallet.");
+        }
       }
 
       const signedTxn = await WalletConnect.signTransactions([[authTx]]);
@@ -387,7 +399,6 @@ export const wallets: Wallet[] = [
       const token = Buffer.from(signedTxn[0]).toString("base64");
 
       if (await verifyToken(wallet, token)) {
-        // store token in connectedWallets store under the wallet's address as property "token"
         connectedWallets.update((wallets) => {
           return wallets.map((w) => {
             if (w.app === Wallets.BIATEC && w.address === wallet) {
@@ -408,16 +419,17 @@ export const wallets: Wallet[] = [
         connectedWallets.add(wallets);
         return Promise.resolve(wallets[0]);
       }
-      else {
-        return Promise.resolve(null);
-      }
+      return Promise.resolve(null);
     },
     disconnect: async () => {
       await WalletConnect.disconnect();
       connectedWallets.remove(Wallets.WALLETCONNECT);
     },
     signTxns: async (txns: algosdk.Transaction[][]) => {
-      await WalletConnect.connect();
+      // Only connect if there's no active session
+      if (!await WalletConnect.hasActiveSession()) {
+        await WalletConnect.connect();
+      }
       return await WalletConnect.signTransactions(txns);
     },
     signAndSendTxns: async (txns: algosdk.Transaction[][], algodClient?: algosdk.Algodv2) => {
@@ -429,14 +441,20 @@ export const wallets: Wallet[] = [
       if (!algodClient) {
         throw new Error("Algod client not available");
       }
-      await WalletConnect.connect();
+      // Only connect if there's no active session
+      if (!await WalletConnect.hasActiveSession()) {
+        await WalletConnect.connect();
+      }
       return await WalletConnect.signAndSendTransactions(algodClient, txns);
     },
     authenticate: async (wallet: string, algodClient?: algosdk.Algodv2) => {
       const authTx = await draftAuthTx(wallet, algodClient);
 
-      if (!await WalletConnect.connect()) {
-        throw new Error("Could not connect to WalletConnect Wallet.");
+      // Only connect if there's no active session
+      if (!await WalletConnect.hasActiveSession()) {
+        if (!await WalletConnect.connect()) {
+          throw new Error("Could not connect to WalletConnect Wallet.");
+        }
       }
 
       const signedTxn = await WalletConnect.signTransactions([[authTx]]);
@@ -445,7 +463,6 @@ export const wallets: Wallet[] = [
       const token = Buffer.from(signedTxn[0]).toString("base64");
 
       if (await verifyToken(wallet, token)) {
-        // store token in connectedWallets store under the wallet's address as property "token"
         connectedWallets.update((wallets) => {
           return wallets.map((w) => {
             if (w.app === Wallets.WALLETCONNECT && w.address === wallet) {

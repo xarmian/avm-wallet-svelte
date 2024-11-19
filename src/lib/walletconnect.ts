@@ -17,6 +17,47 @@ let subscribed = false;
 
 let CHAIN_ID: string | null = null;
 
+let initialized = false;
+let initializationPromise: Promise<void> | null = null;
+
+async function initialize() {
+    if (initialized) return;
+    if (initializationPromise) return initializationPromise;
+
+    initializationPromise = (async () => {
+        try {
+            const client = await createSignClient();
+            if (!client) return;
+
+            // Get existing sessions
+            const sessions = client.session.values;
+            
+            // Find the most recent active session
+            const lastSession = sessions.sort((a, b) => b.expiry - a.expiry)[0];
+            
+            if (lastSession && client.session.keys.includes(lastSession.topic)) {
+                session = lastSession;
+                
+                // Restore connected wallets from session
+                const wallets = lastSession.namespaces['algorand'].accounts.map((account) => {
+                    const [, , address] = account.split(":");
+                    return { address, app: WalletName };
+                });
+                
+                connectedWallets.add(wallets);
+            }
+
+            initialized = true;
+        } catch (error) {
+            console.error("Failed to initialize WalletConnect:", error);
+        } finally {
+            initializationPromise = null;
+        }
+    })();
+
+    return initializationPromise;
+}
+
 async function getGenesisHash(algodClient: algosdk.Algodv2) {
     try {
         const params = await algodClient.getTransactionParams().do();
@@ -79,18 +120,24 @@ function createWeb3Modal() {
     return web3Modal;
 }
 
+export async function hasActiveSession(): Promise<boolean> {
+    await initialize();
+    const client = await createSignClient();
+    if (!client || !session) return false;
+    return client.session.keys.includes(session.topic);
+}
+
 export async function connect(): Promise<WalletConnectionResult[] | null> {
     try {
+        await initialize();
         const client = await createSignClient();
         const modal = createWeb3Modal();
 
-        if (client.session && session) {
-            if (client.session.keys.includes(session.topic)) {
-                return session.namespaces['algorand'].accounts.map((account) => {
-                    const [, , address] = account.split(":");
-                    return { address, app: WalletName };
-                });
-            }
+        if (client.session && session && client.session.keys.includes(session.topic)) {
+            return session.namespaces['algorand'].accounts.map((account) => {
+                const [, , address] = account.split(":");
+                return { address, app: WalletName };
+            });
         }
 
         const { uri, approval } = await client.connect({
@@ -117,8 +164,8 @@ export async function connect(): Promise<WalletConnectionResult[] | null> {
         });
     } catch (error) {
         console.error(error);
+        return null;
     }
-    return null;
 }
 
 async function subscribeToEvents(client: typeof ISignClient) {
@@ -139,23 +186,24 @@ async function subscribeToEvents(client: typeof ISignClient) {
 }
 
 export async function disconnect() {
+    await initialize();
     if (session && signClient) {
         await signClient.disconnect({
             topic: session.topic,
-            // reason: getSdkError("USER_DISCONNECTED"),
         });
         session = null;
     }
     if (web3Modal) {
         web3Modal.closeModal();
     }
-    //connectedWallets.remove(WalletName);
+    initialized = false;
 }
 
 export async function signAndSendTransactions(
     client: algosdk.Algodv2,
     txnGroups: algosdk.Transaction[][]
 ) {
+    await initialize();
     const signed = await signTransactions(txnGroups);
 
     const groups = txnGroups.map((group) => {
@@ -188,6 +236,7 @@ export async function signAndSendTransactions(
 }
 
 export async function signTransactions(txnGroups: algosdk.Transaction[][]) {
+    await initialize();
     if (!session || !signClient) {
         throw new Error("No active session");
     }
