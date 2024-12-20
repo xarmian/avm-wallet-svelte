@@ -159,3 +159,4 @@ export const authModalStore = writable({
     error: '',
     address: ''
 });
+export const envoiStore = writable<string[]>([]);

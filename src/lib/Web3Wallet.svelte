@@ -6,6 +6,7 @@
     import { verifyToken, wallets, Wallets } from './wallets.js';
     import Cookies from 'js-cookie';
     import AuthModal from './AuthModal.svelte';
+    import envoi from './envoi.js';
 
     export let algodClient: Algodv2 | undefined = undefined;
     export let indexerClient: Indexer | undefined = undefined;
@@ -17,7 +18,7 @@
     export let modalType: 'modal' | 'dropdown' = 'dropdown';
     export let wcProject: { projectId: string, projectName: string, projectDescription: string, projectUrl: string, projectIcons: string[] } = { projectId: '', projectName: '', projectDescription: '', projectUrl: '', projectIcons: [] };
     export let allowWatchAccounts: boolean = false;
-
+    export let envoiName: string = '';
     wcProjectStore.set(wcProject);
  
     const closeWalletList = (event: any) => {
@@ -93,6 +94,13 @@
             callback();
         }
     };
+
+    selectedWallet.subscribe(async (wallet) => {
+        if (wallet && algodClient) {
+            const envoiResolver = envoi.init(algodClient);
+            envoiName = await envoiResolver.getNameFromAddress(wallet.address);
+        }
+    });
 </script>
 
 <AuthModal />
@@ -108,7 +116,11 @@
         <span class="flex-grow text-center ml-8">
             {#if $selectedWallet?.address && connectButtonType === 'wallet'}
                 <div>
-                    {$selectedWallet.address.slice(0, 6)}...{$selectedWallet.address.slice(-6)}
+                    {#if envoiName}
+                        {envoiName}
+                    {:else}
+                        {$selectedWallet.address.slice(0, 6)}...{$selectedWallet.address.slice(-6)}
+                    {/if}
                 </div>
                 {#if $selectedWallet.app === Wallets.WATCH}
                     <div class="text-red-300 text-xs"> Watch Account</div>

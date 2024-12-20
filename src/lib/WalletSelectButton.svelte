@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Wallet, WalletConnectionResult } from './wallets.js';
   import { wallets } from './wallets.js';
-  import { selectedWallet as selectedWalletStore, connectedWallets as connectedWalletStore, showWalletList, authModalStore } from './store.js';
+  import { selectedWallet as selectedWalletStore, connectedWallets as connectedWalletStore, showWalletList, authModalStore, envoiStore } from './store.js';
   import Cookies from 'js-cookie';
   import AuthModal from './AuthModal.svelte';
 
@@ -12,6 +12,24 @@
   const wallet: Wallet | undefined = wallets.find(w => w.name === walletName);
 
   let showAccountList = false;
+  let connectedWallets: WalletConnectionResult[] = [];
+
+  connectedWalletStore.subscribe(async (wallets) => {
+    connectedWallets = wallets.filter((w) => w.app === walletName);
+
+    if (connectedWallets.length > 0) {
+      // create list of wallet addresses that are not in envoiStore
+      let addresses = connectedWallets.map((w) => w.address).filter((a) => !$envoiStore.includes(a));
+      
+      if (addresses.length > 0) {
+        fetch(`https://envoi-api.vercel.app/api/name/${addresses.join(',')}`).then((res) => res.json()).then((data) => {
+          const names = data.results.map((r: any) => r.name);
+          envoiStore.set(names);
+        });
+      }
+    }
+
+  });
 
   const connectWallet = async () => {
     const wallet = wallets.find((w) => w.name === walletName);
@@ -74,7 +92,6 @@
         return w;
       });
     });
-
   };
 
 </script>
@@ -92,7 +109,7 @@
             Add Watch
           </button>
         {:else}
-          {#if $connectedWalletStore.filter((w) => w.app === walletName).length > 0 && modalType == 'dropdown'}
+          {#if connectedWallets.length > 0 && modalType == 'dropdown'}
             <button class="px-2 py-1 text-xs bg-red-500 text-white rounded-full hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 dark:bg-red-700 dark:hover:bg-red-800 transition-colors duration-200" on:click={() => disconnectWallet()}>
               Disconnect
             </button>
@@ -104,13 +121,13 @@
         {/if}
       </div>
     </div>
-    {#if modalType == 'dropdown' && $connectedWalletStore.filter((w) => w.app === walletName).length > 0}
+    {#if modalType == 'dropdown' && connectedWallets.length > 0}
       <div class="ml-8 mt-1">
-        {#each $connectedWalletStore.filter((w) => w.app === walletName) as connectedWallet}
+        {#each connectedWallets as connectedWallet, index}
           {#if connectedWallet.address}
             <div class="flex items-center justify-between text-sm">
               <button class="flex-grow text-left truncate rounded-md hover:bg-gray-100 p-2 dark:hover:bg-gray-700 transition-colors duration-200 {$selectedWalletStore?.app == connectedWallet.app && $selectedWalletStore?.address == connectedWallet.address ? 'font-bold':''}" on:click={() => selectDefaultWallet(connectedWallet.address)}>
-                {connectedWallet.address.slice(0, 10)}...{connectedWallet.address.slice(-10)}
+                {$envoiStore[index] ? $envoiStore[index] : connectedWallet.address.slice(0, 10)}...{connectedWallet.address.slice(-10)}
               </button>
               <div class="flex items-center">
                 {#if connectedWallet.watch}
@@ -135,7 +152,7 @@
           {/if}
         {/each}
       </div>
-      {:else if showAccountList && $connectedWalletStore.filter((w) => w.app === walletName).length > 0}
+      {:else if showAccountList && connectedWallets.length > 0}
       <!-- svelte-ignore a11y-click-events-have-key-events -->
       <div class="fixed inset-0 bg-black flex items-center justify-center">
         <div class="flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden w-full max-w-xl mx-auto z-10">
@@ -148,10 +165,10 @@
           <div class="p-4 pb-1">Click each account to authenticate</div>
         
           <div class="flex flex-col m-3">
-            {#each $connectedWalletStore.filter((w) => w.app === walletName) as connectedWallet}
+            {#each connectedWallets as connectedWallet, index}
               {#if connectedWallet.address}
                 <button class="flex justify-between p-2 my-1 rounded w-full hover:bg-slate-200 dark:hover:bg-slate-500 bg-slate-100 dark:bg-slate-600" on:click={() => authenticateWallet(connectedWallet.address)}>
-                  {connectedWallet.address.slice(0, 8)}...{connectedWallet.address.slice(-8)}
+                  {$envoiStore[index] ? $envoiStore[index] : connectedWallet.address.slice(0, 8)}...{connectedWallet.address.slice(-8)}
                   <span class="text-xs {connectedWallet.auth ? 'text-green-500' : 'text-red-500'}">
                     {connectedWallet.auth ? 'Authenticated' : 'Not Authenticated'}
                   </span>

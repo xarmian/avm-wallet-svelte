@@ -51,6 +51,7 @@ export interface WalletConnectionResult {
   token?: string;
   auth?: boolean;
   watch?: boolean;
+  envoiName?: string;
 }
 
 export const wallets: Wallet[] = [
