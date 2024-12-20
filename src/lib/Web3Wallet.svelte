@@ -1,6 +1,6 @@
 <script lang="ts">
     import WalletList from './WalletList.svelte';
-    import { selectedWallet, showWalletList, ProviderStore, connectedWallets as connectedWalletStore, wcProjectStore, authModalStore } from './store.js';
+    import { selectedWallet, showWalletList, ProviderStore, connectedWallets as connectedWalletStore, wcProjectStore, authModalStore, envoiStore } from './store.js';
     import { onMount } from 'svelte';
     import type { Algodv2, Indexer } from 'algosdk';
     import { verifyToken, wallets, Wallets } from './wallets.js';
@@ -96,9 +96,17 @@
     };
 
     const unsub = selectedWallet.subscribe(async (wallet) => {
+        // first check envoiStore for name
+        const name = $envoiStore.find((n) => n.address === wallet?.address);
+        if (name && name.name) {
+            envoiName = name.name;
+            return;
+        }
+
         if (wallet && algodClient) {
             const envoiResolver = envoi.init(algodClient);
             envoiName = await envoiResolver.getNameFromAddress(wallet.address);
+            envoiStore.update((store) => [...store, { address: wallet.address, name: envoiName }]);
         }
     });
 

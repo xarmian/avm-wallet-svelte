@@ -19,12 +19,20 @@
 
     if (connectedWallets.length > 0) {
       // create list of wallet addresses that are not in envoiStore
-      let addresses = connectedWallets.map((w) => w.address).filter((a) => !$envoiStore.includes(a));
+      let addresses = connectedWallets.map((w) => w.address).filter((a) => !$envoiStore.find((n) => n.address === a));
       
       if (addresses.length > 0) {
-        fetch(`https://envoi-api.vercel.app/api/name/${addresses.join(',')}`).then((res) => res.json()).then((data) => {
-          const names = data.results.map((r: any) => r.name);
-          envoiStore.set(names);
+        fetch(`https://api.envoi.sh/api/name/${addresses.join(',')}`).then((res) => res.json()).then((data) => {
+          if (data && data.results) {
+            const names = data.results.map((r: any) => ({ address: r.address, name: r.name }));
+            envoiStore.update((store) => [...store, ...names]);
+          }
+          else {
+            // add address to envoiStore with null name
+            addresses.forEach((a) => {
+              envoiStore.update((store) => [...store, { address: a, name: null }]);
+            });
+          }
         });
       }
     }
@@ -131,7 +139,7 @@
           {#if connectedWallet.address}
             <div class="flex items-center justify-between text-sm">
               <button class="flex-grow text-left truncate rounded-md hover:bg-gray-100 p-2 dark:hover:bg-gray-700 transition-colors duration-200 {$selectedWalletStore?.app == connectedWallet.app && $selectedWalletStore?.address == connectedWallet.address ? 'font-bold':''}" on:click={() => selectDefaultWallet(connectedWallet.address)}>
-                {$envoiStore[index] ? $envoiStore[index] : connectedWallet.address.slice(0, 10)}...{connectedWallet.address.slice(-10)}
+                {$envoiStore.find((n) => n.address === connectedWallet.address)?.name ? $envoiStore.find((n) => n.address === connectedWallet.address)?.name : connectedWallet.address.slice(0, 10)}...{connectedWallet.address.slice(-10)}
               </button>
               <div class="flex items-center">
                 {#if connectedWallet.watch}
@@ -172,7 +180,7 @@
             {#each connectedWallets as connectedWallet, index}
               {#if connectedWallet.address}
                 <button class="flex justify-between p-2 my-1 rounded w-full hover:bg-slate-200 dark:hover:bg-slate-500 bg-slate-100 dark:bg-slate-600" on:click={() => authenticateWallet(connectedWallet.address)}>
-                  {$envoiStore[index] ? $envoiStore[index] : connectedWallet.address.slice(0, 8)}...{connectedWallet.address.slice(-8)}
+                  {$envoiStore.find((n) => n.address === connectedWallet.address)?.name ? $envoiStore.find((n) => n.address === connectedWallet.address)?.name : connectedWallet.address.slice(0, 8)}...{connectedWallet.address.slice(-8)}
                   <span class="text-xs {connectedWallet.auth ? 'text-green-500' : 'text-red-500'}">
                     {connectedWallet.auth ? 'Authenticated' : 'Not Authenticated'}
                   </span>
