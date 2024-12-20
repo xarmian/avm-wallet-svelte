@@ -7,7 +7,7 @@
     import Cookies from 'js-cookie';
     import AuthModal from './AuthModal.svelte';
     import envoi from './envoi.js';
-
+    import { onDestroy } from 'svelte';
     export let algodClient: Algodv2 | undefined = undefined;
     export let indexerClient: Indexer | undefined = undefined;
     export let walletListClass: string = 'bg-white dark:bg-gray-600 dark:text-gray-100';
@@ -95,11 +95,15 @@
         }
     };
 
-    selectedWallet.subscribe(async (wallet) => {
+    const unsub = selectedWallet.subscribe(async (wallet) => {
         if (wallet && algodClient) {
             const envoiResolver = envoi.init(algodClient);
             envoiName = await envoiResolver.getNameFromAddress(wallet.address);
         }
+    });
+
+    onDestroy(() => {
+        unsub();
     });
 </script>
 

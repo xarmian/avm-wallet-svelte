@@ -4,7 +4,7 @@
   import { selectedWallet as selectedWalletStore, connectedWallets as connectedWalletStore, showWalletList, authModalStore, envoiStore } from './store.js';
   import Cookies from 'js-cookie';
   import AuthModal from './AuthModal.svelte';
-
+  import { onDestroy } from 'svelte';
   export let walletName: string;
   export let showAuthButton: boolean = false;
   export let modalType: string = 'dropdown'; // modal, dropdown
@@ -14,7 +14,7 @@
   let showAccountList = false;
   let connectedWallets: WalletConnectionResult[] = [];
 
-  connectedWalletStore.subscribe(async (wallets) => {
+  const unsub = connectedWalletStore.subscribe(async (wallets) => {
     connectedWallets = wallets.filter((w) => w.app === walletName);
 
     if (connectedWallets.length > 0) {
@@ -29,6 +29,10 @@
       }
     }
 
+  });
+
+  onDestroy(() => {
+    unsub();
   });
 
   const connectWallet = async () => {
