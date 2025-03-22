@@ -4,3 +4,4 @@ export { selectedWallet, connectedWallets, setOnAddHandler, setOnAuthHandler, sh
 export { getSelectedWalletToken, signAndSendTransactions, signTransactions, Wallets as WalletOptions, verifyToken } from './wallets.js';
 export type { WalletConnectionResult } from './wallets.js';
 export type { AVMWalletStore, SelectedWalletStore } from './store.js';
+export { authenticateSelectedWallet } from './utils.js';

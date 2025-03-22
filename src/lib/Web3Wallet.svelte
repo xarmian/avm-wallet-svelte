@@ -8,6 +8,8 @@
     import AuthModal from './AuthModal.svelte';
     import envoi from './envoi.js';
     import { onDestroy } from 'svelte';
+    import { authenticateSelectedWallet } from './utils.js';
+    
     export let algodClient: Algodv2 | undefined = undefined;
     export let indexerClient: Indexer | undefined = undefined;
     export let walletListClass: string = 'bg-white dark:bg-gray-600 dark:text-gray-100';
@@ -62,7 +64,7 @@
         }
     };
 
-    const authenticateSelectedWallet = async () => {
+    /*const authenticateSelectedWallet = async () => {
         const sWallet = $selectedWallet;
         if (sWallet) {
             const wallet = wallets.find((w) => w.name === sWallet.app);
@@ -82,7 +84,7 @@
                 throw new Error(`Wallet ${sWallet.app} not found`);
             }
         }
-    };
+    };*/
 
     const showWalletListHandler = () => {
         showWalletList.set(!$showWalletList);
