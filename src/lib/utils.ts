@@ -1,6 +1,7 @@
 import { get } from 'svelte/store';
-import { selectedWallet, authModalStore } from './store.js';
+import { selectedWallet, authModalStore, connectedWallets } from './store.js';
 import { wallets } from './wallets.js';
+import Cookies from 'js-cookie';
 
 const authenticateSelectedWallet = async () => {
     const sWallet = get(selectedWallet);
@@ -23,5 +24,19 @@ const authenticateSelectedWallet = async () => {
         }
     }
 };
+
+export const logoutWallet = async (app: string, addr: string) => {
+    // change auth property from wallet with address "addr" and app "app" in connectedWalletStore using update method, delete auth Cookie
+    Cookies.remove(`avm-wallet-token-${addr}`);
+    connectedWallets.update((wallets) => {
+      return wallets.map((w) => {
+        if (w.app === app && w.address === addr) {
+          w.auth = false;
+        }
+        return w;
+      });
+    });
+};
+
 
 export { authenticateSelectedWallet };

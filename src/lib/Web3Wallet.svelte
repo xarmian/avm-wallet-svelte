@@ -9,6 +9,7 @@
     import envoi from './envoi.js';
     import { onDestroy } from 'svelte';
     import { authenticateSelectedWallet } from './utils.js';
+    import { SvelteToast } from '@zerodevx/svelte-toast';
     
     export let algodClient: Algodv2 | undefined = undefined;
     export let indexerClient: Indexer | undefined = undefined;
@@ -117,6 +118,7 @@
     });
 </script>
 
+<SvelteToast />
 <AuthModal />
 
 <div class="flex flex-col relative dark:text-white wallet-container">

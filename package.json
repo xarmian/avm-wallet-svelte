@@ -28,6 +28,7 @@
 		"svelte": "^5"
 	},
 	"devDependencies": {
+		"@agoralabs-sh/avm-web-provider": "^1.7.0",
 		"@fortawesome/fontawesome-free": "^6.6.0",
 		"@sveltejs/adapter-auto": "^3.3.1",
 		"@sveltejs/kit": "^2.8.1",
@@ -36,6 +37,7 @@
 		"@types/eslint": "8.56.0",
 		"@typescript-eslint/eslint-plugin": "^7.18.0",
 		"@typescript-eslint/parser": "^7.18.0",
+		"@zerodevx/svelte-toast": "^0.9.6",
 		"eslint": "^8.56.0",
 		"eslint-config-prettier": "^9.1.0",
 		"eslint-plugin-svelte": "^2.43.0",
@@ -52,7 +54,6 @@
 	"types": "./dist/index.d.ts",
 	"type": "module",
 	"dependencies": {
-		"@agoralabs-sh/algorand-provider": "^1.1.0",
 		"@blockshake/defly-connect": "^1.1.6",
 		"@noble/ed25519": "^2.1.0",
 		"@noble/hashes": "^1.4.0",

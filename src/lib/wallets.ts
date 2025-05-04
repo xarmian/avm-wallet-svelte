@@ -253,7 +253,7 @@ export const wallets: Wallet[] = [
     },
     authenticate: async (wallet: string, algodClient?: algosdk.Algodv2) => {
       const authTx = await draftAuthTx(wallet, algodClient);
-      
+
       if (!await kibisisConnect.connect()) {
         throw new Error("Could not connect to Kibisis Wallet. Is it enabled?");
       };
