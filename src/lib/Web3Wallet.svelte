@@ -6,10 +6,12 @@
     import { verifyToken, wallets, Wallets } from './wallets.js';
     import Cookies from 'js-cookie';
     import AuthModal from './AuthModal.svelte';
+    import SimpleWalletConnectModal from './SimpleWalletConnectModal.svelte';
     import envoi from './envoi.js';
     import { onDestroy } from 'svelte';
     import { authenticateSelectedWallet } from './utils.js';
     import { SvelteToast } from '@zerodevx/svelte-toast';
+    import { showModal, connectionUri } from './walletconnect.js';
     
     export let algodClient: Algodv2 | undefined = undefined;
     export let indexerClient: Indexer | undefined = undefined;
@@ -202,6 +204,7 @@
             </div>
         {/if}
     {/if}
+    <SimpleWalletConnectModal bind:show={$showModal} uri={$connectionUri} />
 </div>
 <style>
     .walletListBox {

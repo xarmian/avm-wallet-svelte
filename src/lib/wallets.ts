@@ -17,6 +17,7 @@ import luteWalletIcon from "./icons/lute_icon.png";
 import walletConnectIcon from "./icons/walletconnect-logo-black.svg";
 import watchWalletIcon from "./icons/watch_icon.png";
 import biatecWalletIcon from "./icons/biatec_icon.svg";
+import voiWalletIcon from "./icons/voi_wallet_icon.svg";
 import algosdk from "algosdk";
 import { Buffer } from "buffer";
 import { get } from "svelte/store";
@@ -27,6 +28,7 @@ export const Wallets = {
   KIBISIS: kibisisConnect.WalletName,
   LUTE: LuteConnect.WalletName,
   BIATEC: 'BiatecWallet',
+  VOIWALLET: 'VoiWallet',
   WALLETCONNECT: WalletConnect.WalletName,
   WATCH: "Watch",
 }
@@ -351,7 +353,7 @@ export const wallets: Wallet[] = [
     name: Wallets.BIATEC,
     icon: biatecWalletIcon,
     connect: async () => {
-      const wallets = await WalletConnect.connect();
+      const wallets = await WalletConnect.connect(Wallets.BIATEC);
       if (wallets) {
         connectedWallets.add(wallets);
         return Promise.resolve(wallets[0]);
@@ -365,7 +367,7 @@ export const wallets: Wallet[] = [
     signTxns: async (txns: algosdk.Transaction[][]) => {
       // Only connect if there's no active session
       if (!await WalletConnect.hasActiveSession()) {
-        await WalletConnect.connect();
+        await WalletConnect.connect(Wallets.BIATEC);
       }
       return await WalletConnect.signTransactions(txns);
     },
@@ -380,7 +382,7 @@ export const wallets: Wallet[] = [
       }
       // Only connect if there's no active session
       if (!await WalletConnect.hasActiveSession()) {
-        await WalletConnect.connect();
+        await WalletConnect.connect(Wallets.BIATEC);
       }
       return await WalletConnect.signAndSendTransactions(algodClient, txns);
     },
@@ -389,7 +391,7 @@ export const wallets: Wallet[] = [
 
       // Only connect if there's no active session
       if (!await WalletConnect.hasActiveSession()) {
-        if (!await WalletConnect.connect()) {
+        if (!await WalletConnect.connect(Wallets.BIATEC)) {
           throw new Error("Could not connect to WalletConnect Wallet.");
         }
       }
@@ -403,6 +405,70 @@ export const wallets: Wallet[] = [
         connectedWallets.update((wallets) => {
           return wallets.map((w) => {
             if (w.app === Wallets.BIATEC && w.address === wallet) {
+              w.token = token;
+            }
+            return w;
+          });
+        });
+      }
+    }
+  },
+  {
+    name: Wallets.VOIWALLET,
+    icon: voiWalletIcon,
+    connect: async () => {
+      const wallets = await WalletConnect.connect(Wallets.VOIWALLET);
+      if (wallets) {
+        connectedWallets.add(wallets);
+        return Promise.resolve(wallets[0]);
+      }
+      return Promise.resolve(null);
+    },
+    disconnect: async () => {
+      await WalletConnect.disconnect();
+      connectedWallets.remove(Wallets.VOIWALLET);
+    },
+    signTxns: async (txns: algosdk.Transaction[][]) => {
+      // Only connect if there's no active session
+      if (!await WalletConnect.hasActiveSession()) {
+        await WalletConnect.connect(Wallets.VOIWALLET);
+      }
+      return await WalletConnect.signTransactions(txns);
+    },
+    signAndSendTxns: async (txns: algosdk.Transaction[][], algodClient?: algosdk.Algodv2) => {
+      const providerStoreValue = get(ProviderStore);
+      if (!algodClient) {
+        algodClient = providerStoreValue.algodClient;
+      }
+
+      if (!algodClient) {
+        throw new Error("Algod client not available");
+      }
+      // Only connect if there's no active session
+      if (!await WalletConnect.hasActiveSession()) {
+        await WalletConnect.connect(Wallets.VOIWALLET);
+      }
+      return await WalletConnect.signAndSendTransactions(algodClient, txns);
+    },
+    authenticate: async (wallet: string, algodClient?: algosdk.Algodv2) => {
+      const authTx = await draftAuthTx(wallet, algodClient);
+
+      // Only connect if there's no active session
+      if (!await WalletConnect.hasActiveSession()) {
+        if (!await WalletConnect.connect(Wallets.VOIWALLET)) {
+          throw new Error("Could not connect to WalletConnect Wallet.");
+        }
+      }
+
+      const signedTxn = await WalletConnect.signTransactions([[authTx]]);
+
+      // base64 encode using buffer
+      const token = Buffer.from(signedTxn[0]).toString("base64");
+
+      if (await verifyToken(wallet, token)) {
+        connectedWallets.update((wallets) => {
+          return wallets.map((w) => {
+            if (w.app === Wallets.VOIWALLET && w.address === wallet) {
               w.token = token;
             }
             return w;

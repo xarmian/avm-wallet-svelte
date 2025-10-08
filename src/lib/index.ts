@@ -5,3 +5,4 @@ export { getSelectedWalletToken, signAndSendTransactions, signTransactions, Wall
 export type { WalletConnectionResult } from './wallets.js';
 export type { AVMWalletStore, SelectedWalletStore } from './store.js';
 export { authenticateSelectedWallet } from './utils.js';
+export { clearSessions as clearWalletConnectSessions, forceReconnect as forceWalletConnectReconnect, debugWalletConnectState } from './walletconnect.js';
