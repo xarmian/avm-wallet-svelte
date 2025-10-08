@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import QRCode from 'qrcode';
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
 
   export let show = false;
   export let uri = '';
@@ -11,15 +11,32 @@
   let qrCodeDataUrl = '';
   let qrCodeDataUrlDark = '';
   let copySuccess = false;
+  let modalElement: HTMLDivElement;
+  let portalTarget: HTMLElement;
 
   onMount(() => {
     if (uri) {
       generateQRCode();
     }
+
+    // Create portal target at body level
+    portalTarget = document.createElement('div');
+    portalTarget.id = 'wallet-modal-portal';
+    document.body.appendChild(portalTarget);
+
+    return () => {
+      if (portalTarget && document.body.contains(portalTarget)) {
+        document.body.removeChild(portalTarget);
+      }
+    };
   });
 
   $: if (uri && show) {
     generateQRCode();
+  }
+
+  $: if (portalTarget && modalElement) {
+    portalTarget.appendChild(modalElement);
   }
 
   async function generateQRCode() {
@@ -73,8 +90,8 @@
 </script>
 
 {#if show}
-  <!-- Modal backdrop with blur effect -->
-  <div class="fixed inset-0 bg-black/60 dark:bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4 transition-opacity duration-300">
+  <!-- Modal backdrop with blur effect - will be portaled to body -->
+  <div bind:this={modalElement} class="fixed inset-0 bg-black/60 dark:bg-black/70 backdrop-blur-md flex items-center justify-center p-4 transition-opacity duration-300 z-50">
     <!-- Modal container -->
     <div class="bg-white dark:bg-gray-900 rounded-2xl max-w-md w-full shadow-2xl transform transition-all duration-300 scale-100 border border-gray-200 dark:border-gray-700">
       <!-- Header -->
