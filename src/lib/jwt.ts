@@ -36,12 +36,12 @@ export async function createAuthTransaction(wallet: string, chainId: string, alg
     suggestedParams: {
       ...params,
       fee: 0,
-      firstRound: 1,
-      lastRound: 1,
+      firstValid: 1,
+      lastValid: 1,
       flatFee: true,
     },
-    from: wallet,
-    to: wallet,
+    sender: wallet,
+    receiver: wallet,
     amount: 0,
     note,
   });
@@ -54,16 +54,16 @@ export async function verifySignedTransaction(signedTxnBytes: Uint8Array, expect
   
   // Verify the transaction parameters
   if (
-    txn.from.publicKey !== txn.to.publicKey ||
-    algosdk.encodeAddress(txn.from.publicKey) !== expectedAddress ||
-    txn.amount !== 0 ||
-    txn.fee !== 0
+    txn.sender.publicKey !== txn.payment?.receiver.publicKey ||
+    algosdk.encodeAddress(txn.sender.publicKey) !== expectedAddress ||
+    txn.payment?.amount !== BigInt(0) ||
+    txn.fee !== BigInt(0)
   ) {
     throw new Error('Invalid authentication transaction');
   }
 
   // Verify the signature
-  const verified = await ed.verify(sig, txn.bytesToSign(), txn.from.publicKey);
+  const verified = await ed.verify(sig, txn.bytesToSign(), txn.sender.publicKey);
   if (!verified) {
     throw new Error('Invalid transaction signature');
   }
@@ -128,13 +128,13 @@ export async function verifyToken(token: string, expectedAddress: string): Promi
         const txn = stxn.txn;
         
         // Compare the arrays using every() to check each element
-        const publicKeysMatch = txn.from.publicKey.length === txn.to.publicKey.length &&
-          txn.from.publicKey.every((value, index) => value === txn.to.publicKey[index]);
+        const publicKeysMatch = txn.sender.publicKey.length === txn.receiver.publicKey.length &&
+          txn.sender.publicKey.every((value, index) => value === txn.receiver.publicKey[index]);
         
         // Verify basic transaction properties
         if (
           !publicKeysMatch ||
-          algosdk.encodeAddress(txn.from.publicKey) !== expectedAddress ||
+          algosdk.encodeAddress(txn.sender.publicKey) !== expectedAddress ||
           txn.amount != undefined ||
           txn.fee != undefined
         ) {

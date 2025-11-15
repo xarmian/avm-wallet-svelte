@@ -5,8 +5,10 @@ import Cookies from 'js-cookie';
 
 const authenticateSelectedWallet = async () => {
     const sWallet = get(selectedWallet);
+
     if (sWallet) {
         const wallet = wallets.find((w) => w.name === sWallet.app);
+        console.log('wallet', wallet);
         if (wallet && wallet.authenticate) {
             authModalStore.set({ show: true, error: '', address: sWallet.address });
 

@@ -71,8 +71,8 @@
         const params = await algodClient.getTransactionParams().do();
 
         const txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
-            from: get(selectedWallet)?.address??'',
-            to: get(selectedWallet)?.address??'',
+            sender: get(selectedWallet)?.address??'',
+            receiver: get(selectedWallet)?.address??'',
             amount: 1000, // amount in microAlgos
             suggestedParams: params
         });

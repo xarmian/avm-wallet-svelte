@@ -45,8 +45,8 @@ export async function connect(): Promise<WalletConnectionResult[] | null> {
             return null;
         }
         
-        const genesisHash = await getGenesisHash(providerStoreValue.algodClient);
-        
+        const genesisHash = Buffer.from(await getGenesisHash(providerStoreValue.algodClient)).toString('base64');
+        console.log('genesisHash', genesisHash);
         if (!genesisHash) {
           throw new Error("Genesis Hash not found: algodClient handle needed");
         }

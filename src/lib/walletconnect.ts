@@ -101,7 +101,7 @@ async function initialize() {
 async function getGenesisHash(algodClient: algosdk.Algodv2) {
     try {
         const params = await algodClient.getTransactionParams().do();
-        return params.genesisHash.substring(0, 32).replaceAll('/', '_');
+        return Buffer.from(params.genesisHash).toString('base64').substring(0, 32).replaceAll('/', '_');
     } catch (error) {
         console.error("An error occurred:", error);
         return null;
@@ -147,16 +147,19 @@ async function createUniversalProvider() {
 // Simple modal state stores
 export const showModal = writable(false);
 export const connectionUri = writable('');
+export const modalWalletName = writable('');
 
 // Export functions to control the modal from components
-export function showWalletConnectModal(uri: string) {
+export function showWalletConnectModal(uri: string, walletName?: string) {
     connectionUri.set(uri);
+    modalWalletName.set(walletName || WalletName);
     showModal.set(true);
 }
 
 export function hideWalletConnectModal() {
     showModal.set(false);
     connectionUri.set('');
+    modalWalletName.set('');
 }
 
 export async function hasActiveSession(): Promise<boolean> {
@@ -238,7 +241,7 @@ export async function connect(walletName?: string): Promise<WalletConnectionResu
         // Listen for display_uri event to show our custom modal
         universalProvider.on('display_uri', (uri: string) => {
             console.log('Display URI:', uri);
-            showWalletConnectModal(uri);
+            showWalletConnectModal(uri, intendedWalletName);
         });
 
         const namespaceConfig = {
@@ -420,9 +423,9 @@ export async function signAndSendTransactions(
     });
 
     for (const group of groups) {
-        const { txId } = await client.sendRawTransaction(group).do();
+        const { txid } = await client.sendRawTransaction(group).do();
         try {
-            await algosdk.waitForConfirmation(client, txId, 1);
+            await algosdk.waitForConfirmation(client, txid, 1);
         } catch (error) {
             console.warn((<Error>error).message);
         }

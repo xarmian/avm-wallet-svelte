@@ -5,6 +5,7 @@
 
   export let show = false;
   export let uri = '';
+  export let walletName = '';
 
   const dispatch = createEventDispatcher();
 
@@ -13,6 +14,11 @@
   let copySuccess = false;
   let modalElement: HTMLDivElement;
   let portalTarget: HTMLElement;
+
+  // Transform URI for Voi Wallet to use universal URL scheme
+  $: displayUri = walletName === 'VoiWalletx'
+    ? `https://www.getvoi.app/wc?uri=${encodeURIComponent(uri)}`
+    : uri;
 
   onMount(() => {
     if (uri) {
@@ -41,8 +47,8 @@
 
   async function generateQRCode() {
     try {
-      // Generate QR code for light theme
-      qrCodeDataUrl = await QRCode.toDataURL(uri, {
+      // Generate QR code for light theme using displayUri
+      qrCodeDataUrl = await QRCode.toDataURL(displayUri, {
         width: 300,
         margin: 2,
         color: {
@@ -51,8 +57,8 @@
         }
       });
 
-      // Generate QR code for dark theme
-      qrCodeDataUrlDark = await QRCode.toDataURL(uri, {
+      // Generate QR code for dark theme using displayUri
+      qrCodeDataUrlDark = await QRCode.toDataURL(displayUri, {
         width: 300,
         margin: 2,
         color: {
@@ -66,7 +72,7 @@
   }
 
   function openWallet() {
-    window.open(uri, '_self');
+    window.open(displayUri, '_self');
     dispatch('wallet-opened');
   }
 
@@ -77,7 +83,7 @@
 
   async function copyUri() {
     try {
-      await navigator.clipboard.writeText(uri);
+      await navigator.clipboard.writeText(displayUri);
       copySuccess = true;
       dispatch('uri-copied');
       setTimeout(() => {

@@ -11,7 +11,7 @@
     import { onDestroy } from 'svelte';
     import { authenticateSelectedWallet } from './utils.js';
     import { SvelteToast } from '@zerodevx/svelte-toast';
-    import { showModal, connectionUri } from './walletconnect.js';
+    import { showModal, connectionUri, modalWalletName } from './walletconnect.js';
     
     export let algodClient: Algodv2 | undefined = undefined;
     export let indexerClient: Indexer | undefined = undefined;
@@ -204,7 +204,7 @@
             </div>
         {/if}
     {/if}
-    <SimpleWalletConnectModal bind:show={$showModal} uri={$connectionUri} />
+    <SimpleWalletConnectModal bind:show={$showModal} uri={$connectionUri} walletName={$modalWalletName} />
 </div>
 <style>
     .walletListBox {

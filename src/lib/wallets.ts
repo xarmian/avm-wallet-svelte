@@ -286,8 +286,7 @@ export const wallets: Wallet[] = [
       const providerStoreValue = get(ProviderStore);
       
       // get genesis file from algod client
-      const genesis = await providerStoreValue.algodClient?.genesis().do();
-
+      const genesis = JSON.parse(await providerStoreValue.algodClient?.genesis().do() ?? '{}');
       if (!genesis) {
         throw new Error("Genesis ID not found: algodClient handle needed to connect to Lute Wallet");
       }
@@ -562,14 +561,15 @@ async function draftAuthTx(wallet: string, algodClient?: algosdk.Algodv2): Promi
   const authTransaction: algosdk.Transaction = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
     suggestedParams: {
       fee: 0,
-      firstRound: 10,
+      firstValid: 10,
       flatFee: true,
-      lastRound: 10,
+      lastValid: 10,
       genesisHash: params.genesisHash,
       genesisID: params.genesisID,
+      minFee: params.minFee,
     },
-    from: wallet,
-    to: wallet,
+    sender: wallet,
+    receiver: wallet,
     amount: 0,
     note,
   });
@@ -600,8 +600,8 @@ export const verifyToken = async (wallet: string, token: string): Promise<boolea
   // "from" and "to" are distincts ArrayBuffers,
   // comparing them directly would always return false.
   // We therefore convert them back to base32 for comparison.
-  const from = algosdk.encodeAddress(toCheck.from.publicKey);
-  const to = algosdk.encodeAddress(toCheck.to.publicKey);
+  const from = algosdk.encodeAddress(toCheck.sender.publicKey);
+  const to = algosdk.encodeAddress(toCheck.payment?.receiver.publicKey ?? new Uint8Array());
 
   // Guard clause to make sure the token has not expired.
   // We also check the token expiration is not too far out, which would be a red flag.
@@ -611,8 +611,8 @@ export const verifyToken = async (wallet: string, token: string): Promise<boolea
 
   // We verify that the params match the ones we set in the front-end.
   if (
-    toCheck.firstRound === 10 &&
-    toCheck.lastRound === 10 &&
+    toCheck.firstValid === BigInt(10) &&
+    toCheck.lastValid === BigInt(10) &&
     decodedNote[0] === "avm-wallet-auth" &&
     from === to &&
     // It is crucial to verify this or an attacker could sign
@@ -620,7 +620,7 @@ export const verifyToken = async (wallet: string, token: string): Promise<boolea
     from === wallet
   ) {
     // verify signature and return if it succeeds
-    const verified = ed.verify(signature, toCheck.bytesToSign(), toCheck.from.publicKey);
+    const verified = ed.verify(signature, toCheck.bytesToSign(), toCheck.sender.publicKey);
     if (verified) return true;
   }
   return false;
@@ -634,7 +634,7 @@ export async function verifySignature(signedTxn: Uint8Array): Promise<boolean> {
   const txnBytes = decodedTxn.txn.bytesToSign();
 
   // Verify the signature
-  const isValidSignature = ed.verify(decodedTxn.sig, txnBytes, decodedTxn.txn.from.publicKey);
+  const isValidSignature = ed.verify(Buffer.from(decodedTxn.sig ?? new Uint8Array()).toString('base64'), txnBytes, decodedTxn.txn.sender.publicKey);
   return isValidSignature;
 }
 
@@ -654,7 +654,7 @@ export async function verifyTransactionGroupSignatures(signedTxns: Uint8Array[],
       const sig = algosdk.decodeSignedTransaction(signedTxns[i]).sig;
 
       // Verify the signature for each transaction
-      const isValidSignature = algosdk.verifyBytes(txnBytes, sig, publicKey);
+      const isValidSignature = algosdk.verifyBytes(txnBytes, Buffer.from(sig ?? new Uint8Array()), publicKey);
       verificationResults.push(isValidSignature);
   }
 
