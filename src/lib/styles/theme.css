@@ -1,0 +1,186 @@
+/**
+ * AVM Wallet Theme
+ *
+ * CSS custom properties for theming the wallet components.
+ * Override these variables in your application to customize the appearance.
+ *
+ * Colors use space-separated RGB values for opacity support:
+ * background-color: rgb(var(--avm-color-primary));
+ * background-color: rgb(var(--avm-color-primary) / 0.5);
+ */
+
+:root {
+  /* ==================== Colors ==================== */
+
+  /* Primary action color (buttons, links) */
+  --avm-color-primary: 59 130 246; /* blue-500 */
+  --avm-color-primary-hover: 37 99 235; /* blue-600 */
+  --avm-color-primary-active: 29 78 216; /* blue-700 */
+
+  /* Secondary color */
+  --avm-color-secondary: 107 114 128; /* gray-500 */
+  --avm-color-secondary-hover: 75 85 99; /* gray-600 */
+
+  /* Status colors */
+  --avm-color-success: 34 197 94; /* green-500 */
+  --avm-color-warning: 234 179 8; /* yellow-500 */
+  --avm-color-error: 239 68 68; /* red-500 */
+  --avm-color-info: 59 130 246; /* blue-500 */
+
+  /* ==================== Backgrounds ==================== */
+
+  --avm-bg-primary: 255 255 255; /* white */
+  --avm-bg-secondary: 249 250 251; /* gray-50 */
+  --avm-bg-tertiary: 243 244 246; /* gray-100 */
+  --avm-bg-hover: 243 244 246; /* gray-100 */
+  --avm-bg-active: 229 231 235; /* gray-200 */
+  --avm-bg-overlay: 0 0 0; /* black for overlay with opacity */
+  --avm-bg-overlay-opacity: 0.5;
+
+  /* ==================== Text ==================== */
+
+  --avm-text-primary: 17 24 39; /* gray-900 */
+  --avm-text-secondary: 75 85 99; /* gray-600 */
+  --avm-text-tertiary: 156 163 175; /* gray-400 */
+  --avm-text-inverse: 255 255 255; /* white */
+  --avm-text-muted: 107 114 128; /* gray-500 */
+
+  /* ==================== Borders ==================== */
+
+  --avm-border-color: 229 231 235; /* gray-200 */
+  --avm-border-focus: 59 130 246; /* blue-500 */
+  --avm-border-error: 239 68 68; /* red-500 */
+
+  /* ==================== Spacing ==================== */
+
+  --avm-spacing-xs: 0.25rem; /* 4px */
+  --avm-spacing-sm: 0.5rem; /* 8px */
+  --avm-spacing-md: 1rem; /* 16px */
+  --avm-spacing-lg: 1.5rem; /* 24px */
+  --avm-spacing-xl: 2rem; /* 32px */
+  --avm-spacing-2xl: 3rem; /* 48px */
+
+  /* ==================== Border Radius ==================== */
+
+  --avm-radius-sm: 0.25rem; /* 4px */
+  --avm-radius-md: 0.5rem; /* 8px */
+  --avm-radius-lg: 0.75rem; /* 12px */
+  --avm-radius-xl: 1rem; /* 16px */
+  --avm-radius-2xl: 1.5rem; /* 24px */
+  --avm-radius-full: 9999px;
+
+  /* ==================== Shadows ==================== */
+
+  --avm-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --avm-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --avm-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --avm-shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+
+  /* ==================== Typography ==================== */
+
+  --avm-font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --avm-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  --avm-font-size-xs: 0.75rem; /* 12px */
+  --avm-font-size-sm: 0.875rem; /* 14px */
+  --avm-font-size-base: 1rem; /* 16px */
+  --avm-font-size-lg: 1.125rem; /* 18px */
+  --avm-font-size-xl: 1.25rem; /* 20px */
+
+  --avm-font-weight-normal: 400;
+  --avm-font-weight-medium: 500;
+  --avm-font-weight-semibold: 600;
+  --avm-font-weight-bold: 700;
+
+  --avm-line-height-tight: 1.25;
+  --avm-line-height-normal: 1.5;
+  --avm-line-height-relaxed: 1.75;
+
+  /* ==================== Transitions ==================== */
+
+  --avm-transition-fast: 100ms;
+  --avm-transition-normal: 150ms;
+  --avm-transition-slow: 300ms;
+  --avm-transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ==================== Z-Index ==================== */
+
+  --avm-z-dropdown: 40;
+  --avm-z-modal-backdrop: 50;
+  --avm-z-modal: 60;
+  --avm-z-toast: 70;
+
+  /* ==================== Component Specific ==================== */
+
+  /* Button */
+  --avm-btn-height: 2.5rem; /* 40px */
+  --avm-btn-padding-x: var(--avm-spacing-md);
+  --avm-btn-padding-y: var(--avm-spacing-sm);
+  --avm-btn-font-size: var(--avm-font-size-sm);
+  --avm-btn-font-weight: var(--avm-font-weight-semibold);
+  --avm-btn-radius: var(--avm-radius-md);
+
+  /* Wallet list */
+  --avm-wallet-list-width: 20rem; /* 320px */
+  --avm-wallet-list-max-height: 80vh;
+
+  /* Modal */
+  --avm-modal-width: 28rem; /* 448px */
+  --avm-modal-max-width: calc(100vw - 2rem);
+
+  /* Wallet item */
+  --avm-wallet-item-height: 3.5rem; /* 56px */
+  --avm-wallet-icon-size: 2rem; /* 32px */
+
+  /* Address display */
+  --avm-address-font: var(--avm-font-mono);
+}
+
+/* ==================== Dark Mode ==================== */
+
+.dark,
+[data-theme="dark"] {
+  --avm-color-primary: 96 165 250; /* blue-400 */
+  --avm-color-primary-hover: 147 197 253; /* blue-300 */
+  --avm-color-primary-active: 191 219 254; /* blue-200 */
+
+  --avm-color-secondary: 156 163 175; /* gray-400 */
+  --avm-color-secondary-hover: 209 213 219; /* gray-300 */
+
+  --avm-color-success: 74 222 128; /* green-400 */
+  --avm-color-warning: 250 204 21; /* yellow-400 */
+  --avm-color-error: 248 113 113; /* red-400 */
+
+  --avm-bg-primary: 17 24 39; /* gray-900 */
+  --avm-bg-secondary: 31 41 55; /* gray-800 */
+  --avm-bg-tertiary: 55 65 81; /* gray-700 */
+  --avm-bg-hover: 55 65 81; /* gray-700 */
+  --avm-bg-active: 75 85 99; /* gray-600 */
+
+  --avm-text-primary: 249 250 251; /* gray-50 */
+  --avm-text-secondary: 209 213 219; /* gray-300 */
+  --avm-text-tertiary: 156 163 175; /* gray-400 */
+  --avm-text-muted: 107 114 128; /* gray-500 */
+
+  --avm-border-color: 75 85 99; /* gray-600 */
+}
+
+/* ==================== Utility Classes ==================== */
+
+.avm-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.avm-focus-ring {
+  outline: 2px solid rgb(var(--avm-border-focus));
+  outline-offset: 2px;
+}

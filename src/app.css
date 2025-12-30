@@ -4,12 +4,12 @@
 
 /* Safari mobile viewport height fix for WalletConnect modal */
 @supports (-webkit-touch-callout: none) {
-  :root {
-    --vh: 1vh;
-  }
-  
-  /* Set a CSS custom property for actual viewport height */
-  html {
-    height: calc(var(--vh, 1vh) * 100);
-  }
+	:root {
+		--vh: 1vh;
+	}
+
+	/* Set a CSS custom property for actual viewport height */
+	html {
+		height: calc(var(--vh, 1vh) * 100);
+	}
 }
