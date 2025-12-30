@@ -69,6 +69,8 @@ export const uiStore = {
 
   // WalletConnect modal actions
   showWalletConnectModal(uri: string, walletName: string): void {
+    // Close the wallet list when showing WalletConnect QR modal
+    uiState.showWalletList = false;
     uiState.wcModal = { show: true, uri, walletName };
   },
 

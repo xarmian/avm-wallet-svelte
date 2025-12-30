@@ -6,7 +6,7 @@
 
   import { onMount, onDestroy } from "svelte";
   import { walletStore } from "../state/wallet-store.svelte.js";
-  import { uiStore } from "../state/ui-store.svelte.js";
+  import { uiStore, uiState } from "../state/ui-store.svelte.js";
   import { providerStore } from "../state/provider-store.svelte.js";
   import { registry, onWalletConnectModal } from "../adapters/index.js";
 
@@ -69,16 +69,20 @@
   let containerRef = $state<HTMLElement | null>(null);
   let initError = $state<string | null>(null);
   let wcUnsubscribe: (() => void) | null = null;
-  let uiUnsubscribe: (() => void) | null = null;
 
   // UI state - uses global uiStore for external control
   let showList = $state(false);
   let currentView = $state<"selector" | "add-account">("selector");
 
-  // Sync with global uiStore for external control (e.g., uiStore.openWalletList())
+  // Sync with global uiState for external control (e.g., uiStore.openWalletList())
   $effect(() => {
-    if (uiStore.showWalletList && !showList) {
+    const globalShowList = uiState.showWalletList;
+    // Sync local state with global state
+    if (globalShowList && !showList) {
       showList = true;
+      currentView = "selector";
+    } else if (!globalShowList && showList) {
+      showList = false;
       currentView = "selector";
     }
   });
