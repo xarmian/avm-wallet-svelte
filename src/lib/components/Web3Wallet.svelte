@@ -69,10 +69,19 @@
   let containerRef = $state<HTMLElement | null>(null);
   let initError = $state<string | null>(null);
   let wcUnsubscribe: (() => void) | null = null;
+  let uiUnsubscribe: (() => void) | null = null;
 
-  // Local UI state for this instance (not shared across instances)
+  // UI state - uses global uiStore for external control
   let showList = $state(false);
   let currentView = $state<"selector" | "add-account">("selector");
+
+  // Sync with global uiStore for external control (e.g., uiStore.openWalletList())
+  $effect(() => {
+    if (uiStore.showWalletList && !showList) {
+      showList = true;
+      currentView = "selector";
+    }
+  });
 
   // Initialize on mount
   onMount(() => {
@@ -160,6 +169,10 @@
   function closeList() {
     showList = false;
     currentView = "selector";
+    // Also close global state if it was opened externally
+    if (uiStore.showWalletList) {
+      uiStore.closeWalletList();
+    }
   }
 
   function formatAddress(address: string): string {
