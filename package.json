@@ -1,6 +1,6 @@
 {
 	"name": "avm-wallet-svelte",
-	"version": "1.1.1",
+	"version": "1.1.2",
 	"description": "AVM Wallet Web3 Svelte Component for Algorand-based Networks",
 	"scripts": {
 		"dev": "vite dev",
