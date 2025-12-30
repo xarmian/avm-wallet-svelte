@@ -1,9 +1,12 @@
 // Main component
 export { default as Web3Wallet } from "./Web3Wallet.svelte";
 
-// Sub-components (for advanced customization)
-export { default as WalletList } from "./WalletList.svelte";
-export { default as WalletItem } from "./WalletItem.svelte";
-export { default as AccountList } from "./AccountList.svelte";
+// Account selector components
+export { default as AccountSelector } from "./AccountSelector.svelte";
+export { default as AccountRow } from "./AccountRow.svelte";
+export { default as AddAccountView } from "./AddAccountView.svelte";
+export { default as WalletProviderRow } from "./WalletProviderRow.svelte";
+
+// Modal components
 export { default as AuthModal } from "./AuthModal.svelte";
 export { default as WalletConnectModal } from "./WalletConnectModal.svelte";

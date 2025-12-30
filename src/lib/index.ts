@@ -13,21 +13,23 @@ export { Web3Wallet } from "./components/index.js";
 
 // Sub-components for advanced customization
 export {
-  WalletList,
-  WalletItem,
-  AccountList,
+  AccountSelector,
+  AccountRow,
+  AddAccountView,
+  WalletProviderRow,
   AuthModal,
   WalletConnectModal,
 } from "./components/index.js";
 
 // State management
-export { walletStore, uiStore, providerStore } from "./state/index.js";
+export { walletStore, uiStore, uiState, providerStore } from "./state/index.js";
 
 // State types
 export type {
   ConnectedAccount,
   ProviderConfig,
   UIState,
+  ViewState,
   AccountAddedHandler,
   AccountAuthenticatedHandler,
   AccountRemovedHandler,

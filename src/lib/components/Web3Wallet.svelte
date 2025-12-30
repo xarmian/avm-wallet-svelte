@@ -10,7 +10,8 @@
   import { providerStore } from "../state/provider-store.svelte.js";
   import { registry, onWalletConnectModal } from "../adapters/index.js";
 
-  import WalletList from "./WalletList.svelte";
+  import AccountSelector from "./AccountSelector.svelte";
+  import AddAccountView from "./AddAccountView.svelte";
   import AuthModal from "./AuthModal.svelte";
   import WalletConnectModal from "./WalletConnectModal.svelte";
 
@@ -22,23 +23,24 @@
     indexerClient?: Indexer;
     /** Which wallets to enable */
     enabledWallets?: WalletId[];
-    /** Show authentication buttons */
-    showAuthButtons?: boolean;
-    /** Show authentication status badge */
-    showAuthenticated?: boolean;
     /** Allow watch-only accounts */
     allowWatchAccounts?: boolean;
     /** Display mode: dropdown or modal */
     displayMode?: "dropdown" | "modal";
-    /** Button style: shows connected wallet or static text */
-    buttonStyle?: "wallet" | "static";
     /** WalletConnect project configuration */
     wcConfig?: WalletConnectConfig;
     /** Additional CSS classes for the container */
     class?: string;
 
-    /** Custom button content */
-    button?: Snippet<
+    /** Auto sign-in after connecting */
+    autoSignIn?: boolean;
+    /** Show sign-in button on accounts */
+    showSignInButton?: boolean;
+    /** Show sign-in status indicator */
+    showSignInStatus?: boolean;
+
+    /** Custom trigger button content */
+    trigger?: Snippet<
       [
         {
           selectedAccount: ConnectedAccount | null;
@@ -47,24 +49,20 @@
         },
       ]
     >;
-
-    /** Custom wallet icon renderer */
-    walletIcon?: Snippet<[{ walletId: WalletId }]>;
   }
 
   let {
     algodClient,
     indexerClient,
-    enabledWallets = ["pera", "defly", "kibisis", "lute", "walletconnect"],
-    showAuthButtons = false,
-    showAuthenticated = true,
+    enabledWallets = ["pera", "defly", "kibisis", "lute", "walletconnect", "biatec", "voiwallet"],
     allowWatchAccounts = false,
     displayMode = "dropdown",
-    buttonStyle = "wallet",
     wcConfig,
     class: className = "",
-    button,
-    walletIcon,
+    autoSignIn = false,
+    showSignInButton = false,
+    showSignInStatus = true,
+    trigger,
   }: Props = $props();
 
   // Local state
@@ -72,16 +70,15 @@
   let initError = $state<string | null>(null);
   let wcUnsubscribe: (() => void) | null = null;
 
-  // Derived state from stores
-  const selectedAccount = $derived(walletStore.selectedAccount);
-  const showList = $derived(uiStore.showWalletList);
+  // Local UI state for this instance (not shared across instances)
+  let showList = $state(false);
+  let currentView = $state<"selector" | "add-account">("selector");
 
   // Initialize on mount
   onMount(() => {
-    // Add click-outside listener
-    document.addEventListener("click", handleClickOutside);
-
-    // Run async initialization
+    if (typeof document !== "undefined") {
+      document.addEventListener("click", handleClickOutside);
+    }
     initializeWallet();
   });
 
@@ -137,18 +134,32 @@
   }
 
   onDestroy(() => {
-    document.removeEventListener("click", handleClickOutside);
+    if (typeof document !== "undefined") {
+      document.removeEventListener("click", handleClickOutside);
+    }
     wcUnsubscribe?.();
   });
 
   function handleClickOutside(event: MouseEvent) {
     if (containerRef && !containerRef.contains(event.target as Node)) {
-      uiStore.closeWalletList();
+      closeList();
     }
   }
 
   function toggleWalletList() {
-    uiStore.toggleWalletList();
+    showList = !showList;
+    if (showList) {
+      currentView = "selector";
+    }
+  }
+
+  function openAddAccount() {
+    currentView = "add-account";
+  }
+
+  function closeList() {
+    showList = false;
+    currentView = "selector";
   }
 
   function formatAddress(address: string): string {
@@ -157,7 +168,7 @@
 
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === "Escape") {
-      uiStore.closeWalletList();
+      closeList();
     }
   }
 </script>
@@ -171,93 +182,106 @@
 <WalletConnectModal />
 
 <div bind:this={containerRef} class="avm-wallet {className}">
-  {#if button}
-    {@render button({
-      selectedAccount,
+  <!-- Trigger Button -->
+  {#if trigger}
+    {@render trigger({
+      selectedAccount: walletStore.selectedAccount,
       toggle: toggleWalletList,
       isOpen: showList,
     })}
   {:else}
     <button
       type="button"
-      class="avm-wallet-button"
+      class="avm-wallet__trigger"
       onclick={toggleWalletList}
       aria-expanded={showList}
       aria-haspopup="listbox"
     >
       {#if initError}
-        <span class="avm-wallet-error">Error: {initError}</span>
-      {:else if selectedAccount && buttonStyle === "wallet"}
-        <span class="avm-wallet-account">
-          <span class="avm-wallet-address">
-            {selectedAccount.name || formatAddress(selectedAccount.address)}
-          </span>
-          {#if selectedAccount.isWatch}
-            <span class="avm-wallet-badge avm-wallet-badge--watch">Watch</span>
-          {:else if showAuthButtons && showAuthenticated}
-            {#if selectedAccount.authenticated}
-              <span class="avm-wallet-badge avm-wallet-badge--auth">Authenticated</span>
-            {:else}
-              <span class="avm-wallet-badge avm-wallet-badge--unauth">Not Authenticated</span>
-            {/if}
-          {/if}
+        <span class="avm-wallet__error">Error</span>
+      {:else if walletStore.selectedAccount}
+        <span class="avm-wallet__account">
+          {walletStore.selectedAccount.name || formatAddress(walletStore.selectedAccount.address)}
         </span>
       {:else}
-        <span class="avm-wallet-connect-text">Connect Wallet</span>
+        <span class="avm-wallet__placeholder">Select Account</span>
       {/if}
 
-      {#if buttonStyle === "wallet"}
-        <svg class="avm-wallet-chevron" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-          {#if showList}
-            <path
-              fill-rule="evenodd"
-              d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832 6.29 12.77a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z"
-              clip-rule="evenodd"
-            />
-          {:else}
-            <path
-              fill-rule="evenodd"
-              d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
-              clip-rule="evenodd"
-            />
-          {/if}
-        </svg>
-      {/if}
+      <svg
+        class="avm-wallet__chevron"
+        class:avm-wallet__chevron--open={showList}
+        viewBox="0 0 20 20"
+        fill="currentColor"
+        aria-hidden="true"
+      >
+        <path
+          fill-rule="evenodd"
+          d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+          clip-rule="evenodd"
+        />
+      </svg>
     </button>
   {/if}
 
+  <!-- Dropdown/Modal Content -->
   {#if showList}
     {#if displayMode === "dropdown"}
-      <div class="avm-wallet-dropdown" role="listbox">
-        <WalletList {showAuthButtons} {walletIcon} />
+      <div class="avm-wallet__dropdown" role="dialog" aria-label="Account selector">
+        {#if currentView === "selector"}
+          <AccountSelector
+            {showSignInStatus}
+            {showSignInButton}
+            {autoSignIn}
+            onAddAccount={openAddAccount}
+            onClose={closeList}
+          />
+        {:else if currentView === "add-account"}
+          <AddAccountView {autoSignIn} onBack={() => (currentView = "selector")} onClose={closeList} />
+        {/if}
       </div>
     {:else}
       <!-- Modal mode -->
       <div
-        class="avm-modal-backdrop"
+        class="avm-wallet__backdrop"
         role="dialog"
         aria-modal="true"
-        aria-label="Select Wallet"
-        onclick={() => uiStore.closeWalletList()}
-        onkeydown={(e) => e.key === "Escape" && uiStore.closeWalletList()}
+        aria-label="Account selector"
+        onclick={() => closeList()}
+        onkeydown={(e) => e.key === "Escape" && closeList()}
       >
-        <div class="avm-modal" onclick={(e) => e.stopPropagation()} role="document">
-          <header class="avm-modal-header">
-            <h2 class="avm-modal-title">Select Wallet</h2>
-            <button
-              type="button"
-              class="avm-modal-close"
-              onclick={() => uiStore.closeWalletList()}
-              aria-label="Close"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </header>
-          <div class="avm-modal-body">
-            <WalletList {showAuthButtons} {walletIcon} />
-          </div>
+        <div
+          class="avm-wallet__modal"
+          onclick={(e) => e.stopPropagation()}
+          role="document"
+        >
+          {#if currentView === "selector"}
+            <header class="avm-wallet__modal-header">
+              <h2 class="avm-wallet__modal-title">Select Account</h2>
+              <button
+                type="button"
+                class="avm-wallet__modal-close"
+                onclick={() => closeList()}
+                aria-label="Close"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </header>
+            <div class="avm-wallet__modal-body">
+              <AccountSelector
+                {showSignInStatus}
+                {showSignInButton}
+                {autoSignIn}
+                onAddAccount={openAddAccount}
+                onClose={closeList}
+              />
+            </div>
+          {:else if currentView === "add-account"}
+            <div class="avm-wallet__modal-body avm-wallet__modal-body--no-header">
+              <AddAccountView {autoSignIn} onBack={() => (currentView = "selector")} onClose={closeList} />
+            </div>
+          {/if}
         </div>
       </div>
     {/if}
@@ -271,91 +295,77 @@
     font-size: var(--avm-font-size-sm);
   }
 
-  .avm-wallet-button {
+  /* Trigger Button */
+  .avm-wallet__trigger {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: var(--avm-spacing-sm);
-    width: 100%;
-    min-height: var(--avm-btn-height);
-    padding: var(--avm-btn-padding-y) var(--avm-btn-padding-x);
-    background-color: rgb(var(--avm-color-primary));
-    color: rgb(var(--avm-text-inverse));
-    font-size: var(--avm-btn-font-size);
-    font-weight: var(--avm-btn-font-weight);
-    border: none;
-    border-radius: var(--avm-btn-radius);
+    min-width: 180px;
+    padding: 10px 14px;
+    background-color: rgb(var(--avm-bg-primary));
+    color: rgb(var(--avm-text-primary));
+    font-size: var(--avm-font-size-sm);
+    font-weight: var(--avm-font-weight-medium);
+    border: 1px solid rgb(var(--avm-border-color));
+    border-radius: var(--avm-radius-md);
     cursor: pointer;
-    transition:
-      background-color var(--avm-transition-normal) var(--avm-transition-timing),
-      box-shadow var(--avm-transition-normal) var(--avm-transition-timing);
-    box-shadow: var(--avm-shadow-sm);
+    transition: all var(--avm-transition-fast);
   }
 
-  .avm-wallet-button:hover {
-    background-color: rgb(var(--avm-color-primary-hover));
+  .avm-wallet__trigger:hover {
+    border-color: rgb(var(--avm-text-tertiary));
   }
 
-  .avm-wallet-button:focus-visible {
-    outline: 2px solid rgb(var(--avm-border-focus));
+  .avm-wallet__trigger:focus-visible {
+    outline: 2px solid rgb(var(--avm-color-primary));
     outline-offset: 2px;
   }
 
-  .avm-wallet-account {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
-    text-align: left;
+  .avm-wallet__account {
+    font-family: var(--avm-font-mono);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .avm-wallet-address {
-    font-family: var(--avm-address-font);
+  .avm-wallet__placeholder {
+    color: rgb(var(--avm-text-secondary));
   }
 
-  .avm-wallet-badge {
-    font-size: var(--avm-font-size-xs);
-    font-weight: var(--avm-font-weight-normal);
-    opacity: 0.9;
-  }
-
-  .avm-wallet-badge--watch {
-    color: rgb(var(--avm-color-warning));
-  }
-
-  .avm-wallet-badge--auth {
-    color: rgb(var(--avm-color-success) / 0.9);
-  }
-
-  .avm-wallet-badge--unauth {
-    color: rgb(255 255 255 / 0.7);
-  }
-
-  .avm-wallet-error {
+  .avm-wallet__error {
     color: rgb(var(--avm-color-error));
   }
 
-  .avm-wallet-chevron {
-    width: 1.25rem;
-    height: 1.25rem;
+  .avm-wallet__chevron {
+    width: 16px;
+    height: 16px;
     flex-shrink: 0;
+    color: rgb(var(--avm-text-tertiary));
+    transition: transform var(--avm-transition-fast);
   }
 
-  .avm-wallet-dropdown {
+  .avm-wallet__chevron--open {
+    transform: rotate(180deg);
+  }
+
+  /* Dropdown */
+  .avm-wallet__dropdown {
     position: absolute;
-    top: calc(100% + var(--avm-spacing-xs));
-    right: 0;
-    width: var(--avm-wallet-list-width);
-    max-height: var(--avm-wallet-list-max-height);
-    overflow-y: auto;
+    top: calc(100% + 4px);
+    left: 0;
+    min-width: 280px;
+    max-width: 360px;
     background-color: rgb(var(--avm-bg-primary));
     border: 1px solid rgb(var(--avm-border-color));
     border-radius: var(--avm-radius-lg);
     box-shadow: var(--avm-shadow-lg);
     z-index: var(--avm-z-dropdown);
+    overflow: hidden;
   }
 
-  .avm-modal-backdrop {
+  /* Modal Backdrop */
+  .avm-wallet__backdrop {
     position: fixed;
     inset: 0;
     background-color: rgb(var(--avm-bg-overlay) / var(--avm-bg-overlay-opacity));
@@ -366,16 +376,18 @@
     z-index: var(--avm-z-modal-backdrop);
   }
 
-  .avm-modal {
-    width: var(--avm-modal-width);
-    max-width: var(--avm-modal-max-width);
+  /* Modal */
+  .avm-wallet__modal {
+    width: 340px;
+    max-width: calc(100vw - 32px);
     background-color: rgb(var(--avm-bg-primary));
     border-radius: var(--avm-radius-xl);
     box-shadow: var(--avm-shadow-xl);
     z-index: var(--avm-z-modal);
+    overflow: hidden;
   }
 
-  .avm-modal-header {
+  .avm-wallet__modal-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -383,40 +395,44 @@
     border-bottom: 1px solid rgb(var(--avm-border-color));
   }
 
-  .avm-modal-title {
+  .avm-wallet__modal-title {
     margin: 0;
-    font-size: var(--avm-font-size-lg);
+    font-size: var(--avm-font-size-base);
     font-weight: var(--avm-font-weight-semibold);
     color: rgb(var(--avm-text-primary));
   }
 
-  .avm-modal-close {
+  .avm-wallet__modal-close {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 2rem;
-    height: 2rem;
+    width: 28px;
+    height: 28px;
     padding: 0;
     background: none;
     border: none;
-    border-radius: var(--avm-radius-md);
+    border-radius: var(--avm-radius-sm);
     color: rgb(var(--avm-text-secondary));
     cursor: pointer;
-    transition: background-color var(--avm-transition-fast);
+    transition: all var(--avm-transition-fast);
   }
 
-  .avm-modal-close:hover {
+  .avm-wallet__modal-close:hover {
     background-color: rgb(var(--avm-bg-hover));
+    color: rgb(var(--avm-text-primary));
   }
 
-  .avm-modal-close svg {
-    width: 1.25rem;
-    height: 1.25rem;
+  .avm-wallet__modal-close svg {
+    width: 16px;
+    height: 16px;
   }
 
-  .avm-modal-body {
-    padding: var(--avm-spacing-sm);
+  .avm-wallet__modal-body {
     max-height: 60vh;
     overflow-y: auto;
+  }
+
+  .avm-wallet__modal-body--no-header {
+    max-height: calc(60vh + 60px);
   }
 </style>

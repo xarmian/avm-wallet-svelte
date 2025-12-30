@@ -18,8 +18,8 @@
   --avm-color-primary-active: 29 78 216; /* blue-700 */
 
   /* Secondary color */
-  --avm-color-secondary: 107 114 128; /* gray-500 */
-  --avm-color-secondary-hover: 75 85 99; /* gray-600 */
+  --avm-color-secondary: 115 115 115; /* neutral-500 */
+  --avm-color-secondary-hover: 82 82 82; /* neutral-600 */
 
   /* Status colors */
   --avm-color-success: 34 197 94; /* green-500 */
@@ -30,24 +30,24 @@
   /* ==================== Backgrounds ==================== */
 
   --avm-bg-primary: 255 255 255; /* white */
-  --avm-bg-secondary: 249 250 251; /* gray-50 */
-  --avm-bg-tertiary: 243 244 246; /* gray-100 */
-  --avm-bg-hover: 243 244 246; /* gray-100 */
-  --avm-bg-active: 229 231 235; /* gray-200 */
+  --avm-bg-secondary: 250 250 250; /* neutral-50 */
+  --avm-bg-tertiary: 245 245 245; /* neutral-100 */
+  --avm-bg-hover: 245 245 245; /* neutral-100 */
+  --avm-bg-active: 229 229 229; /* neutral-200 */
   --avm-bg-overlay: 0 0 0; /* black for overlay with opacity */
-  --avm-bg-overlay-opacity: 0.5;
+  --avm-bg-overlay-opacity: 0.4;
 
   /* ==================== Text ==================== */
 
-  --avm-text-primary: 17 24 39; /* gray-900 */
-  --avm-text-secondary: 75 85 99; /* gray-600 */
-  --avm-text-tertiary: 156 163 175; /* gray-400 */
+  --avm-text-primary: 23 23 23; /* neutral-900 */
+  --avm-text-secondary: 115 115 115; /* neutral-500 */
+  --avm-text-tertiary: 163 163 163; /* neutral-400 */
   --avm-text-inverse: 255 255 255; /* white */
-  --avm-text-muted: 107 114 128; /* gray-500 */
+  --avm-text-muted: 115 115 115; /* neutral-500 */
 
   /* ==================== Borders ==================== */
 
-  --avm-border-color: 229 231 235; /* gray-200 */
+  --avm-border-color: 229 229 229; /* neutral-200 */
   --avm-border-focus: 59 130 246; /* blue-500 */
   --avm-border-error: 239 68 68; /* red-500 */
 
@@ -71,10 +71,10 @@
 
   /* ==================== Shadows ==================== */
 
-  --avm-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --avm-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --avm-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  --avm-shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --avm-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+  --avm-shadow-md: 0 4px 8px -2px rgb(0 0 0 / 0.08);
+  --avm-shadow-lg: 0 4px 12px rgb(0 0 0 / 0.08);
+  --avm-shadow-xl: 0 8px 24px rgb(0 0 0 / 0.12);
 
   /* ==================== Typography ==================== */
 
@@ -99,10 +99,10 @@
 
   /* ==================== Transitions ==================== */
 
-  --avm-transition-fast: 100ms;
-  --avm-transition-normal: 150ms;
-  --avm-transition-slow: 300ms;
-  --avm-transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
+  --avm-transition-fast: 150ms ease-out;
+  --avm-transition-normal: 200ms ease-out;
+  --avm-transition-slow: 300ms ease-out;
+  --avm-transition-timing: ease-out;
 
   /* ==================== Z-Index ==================== */
 
@@ -145,25 +145,25 @@
   --avm-color-primary-hover: 147 197 253; /* blue-300 */
   --avm-color-primary-active: 191 219 254; /* blue-200 */
 
-  --avm-color-secondary: 156 163 175; /* gray-400 */
-  --avm-color-secondary-hover: 209 213 219; /* gray-300 */
+  --avm-color-secondary: 163 163 163; /* neutral-400 */
+  --avm-color-secondary-hover: 212 212 212; /* neutral-300 */
 
   --avm-color-success: 74 222 128; /* green-400 */
   --avm-color-warning: 250 204 21; /* yellow-400 */
   --avm-color-error: 248 113 113; /* red-400 */
 
-  --avm-bg-primary: 17 24 39; /* gray-900 */
-  --avm-bg-secondary: 31 41 55; /* gray-800 */
-  --avm-bg-tertiary: 55 65 81; /* gray-700 */
-  --avm-bg-hover: 55 65 81; /* gray-700 */
-  --avm-bg-active: 75 85 99; /* gray-600 */
+  --avm-bg-primary: 23 23 23; /* neutral-900 */
+  --avm-bg-secondary: 38 38 38; /* neutral-850 */
+  --avm-bg-tertiary: 64 64 64; /* neutral-700 */
+  --avm-bg-hover: 38 38 38; /* neutral-850 */
+  --avm-bg-active: 64 64 64; /* neutral-700 */
 
-  --avm-text-primary: 249 250 251; /* gray-50 */
-  --avm-text-secondary: 209 213 219; /* gray-300 */
-  --avm-text-tertiary: 156 163 175; /* gray-400 */
-  --avm-text-muted: 107 114 128; /* gray-500 */
+  --avm-text-primary: 250 250 250; /* neutral-50 */
+  --avm-text-secondary: 163 163 163; /* neutral-400 */
+  --avm-text-tertiary: 115 115 115; /* neutral-500 */
+  --avm-text-muted: 115 115 115; /* neutral-500 */
 
-  --avm-border-color: 75 85 99; /* gray-600 */
+  --avm-border-color: 64 64 64; /* neutral-700 */
 }
 
 /* ==================== Utility Classes ==================== */
