@@ -74,18 +74,11 @@
   let showList = $state(false);
   let currentView = $state<"selector" | "add-account">("selector");
 
-  // Sync with global uiState for external control (e.g., uiStore.openWalletList())
-  $effect(() => {
-    const globalShowList = uiState.showWalletList;
-    // Sync local state with global state
-    if (globalShowList && !showList) {
-      showList = true;
-      currentView = "selector";
-    } else if (!globalShowList && showList) {
-      showList = false;
-      currentView = "selector";
-    }
-  });
+  // NOTE: Global uiState.showWalletList is only for EXTERNAL programmatic control
+  // (e.g., calling uiStore.openWalletList() from outside the component).
+  // Multiple Web3Wallet instances each manage their own local showList state.
+  // We intentionally do NOT sync local state to global state here to avoid
+  // one component's open/close affecting other instances.
 
   // Initialize on mount
   onMount(() => {
@@ -154,7 +147,8 @@
   });
 
   function handleClickOutside(event: MouseEvent) {
-    if (containerRef && !containerRef.contains(event.target as Node)) {
+    // Only close if THIS component's list is open AND click is outside
+    if (showList && containerRef && !containerRef.contains(event.target as Node)) {
       closeList();
     }
   }
@@ -173,10 +167,6 @@
   function closeList() {
     showList = false;
     currentView = "selector";
-    // Also close global state if it was opened externally
-    if (uiStore.showWalletList) {
-      uiStore.closeWalletList();
-    }
   }
 
   function formatAddress(address: string): string {

@@ -53,6 +53,86 @@ export function onWalletConnectModal(handler: WalletConnectModalHandler): () => 
 }
 
 /**
+ * Module-level singleton for WalletConnect provider.
+ * Shared across all WalletConnect adapter instances to prevent
+ * multiple initializations of the WalletConnect Core.
+ */
+let sharedProvider: InstanceType<typeof UniversalProvider> | null = null;
+let sharedProviderConfig: { projectId: string; metadata: object } | null = null;
+let sharedProviderInitPromise: Promise<InstanceType<typeof UniversalProvider>> | null = null;
+
+/**
+ * Get or create the shared WalletConnect provider.
+ */
+async function getSharedProvider(
+  wcConfig: WalletConnectConfig
+): Promise<InstanceType<typeof UniversalProvider>> {
+  const newConfig = {
+    projectId: wcConfig.projectId,
+    metadata: {
+      name: wcConfig.name,
+      description: wcConfig.description,
+      url: wcConfig.url,
+      icons: wcConfig.icons,
+    },
+  };
+
+  // If we already have a provider with the same config, reuse it
+  if (
+    sharedProvider &&
+    sharedProviderConfig &&
+    sharedProviderConfig.projectId === newConfig.projectId
+  ) {
+    return sharedProvider;
+  }
+
+  // If initialization is in progress, wait for it
+  if (sharedProviderInitPromise) {
+    return sharedProviderInitPromise;
+  }
+
+  // Clean up existing provider if config changed
+  if (sharedProvider) {
+    try {
+      sharedProvider.removeAllListeners?.();
+    } catch {
+      // Ignore errors during cleanup
+    }
+    sharedProvider = null;
+    sharedProviderConfig = null;
+  }
+
+  // Create new provider
+  sharedProviderInitPromise = UniversalProvider.init(newConfig).then((provider) => {
+    sharedProvider = provider;
+    sharedProviderConfig = newConfig;
+    sharedProviderInitPromise = null;
+    return provider;
+  });
+
+  return sharedProviderInitPromise;
+}
+
+/**
+ * Clean up the shared provider.
+ */
+export async function destroySharedProvider(): Promise<void> {
+  if (sharedProvider) {
+    try {
+      if (sharedProvider.session) {
+        await sharedProvider.disconnect();
+      }
+      sharedProvider.removeAllListeners?.();
+    } catch {
+      // Ignore errors during cleanup
+    }
+    sharedProvider = null;
+    sharedProviderConfig = null;
+    sharedProviderInitPromise = null;
+  }
+}
+
+/**
  * WalletConnect wallet adapter.
  * Supports generic WalletConnect, Biatec, and VoiWallet variants.
  */
@@ -124,29 +204,36 @@ export class WalletConnectAdapter implements WalletAdapter {
     const hashPrefix = this.config.genesisHash.substring(0, 32).replace(/\//g, "_");
     this.chainId = `algorand:${hashPrefix}`;
 
-    // Create provider
-    this.provider = await UniversalProvider.init({
-      projectId: this.wcConfig.projectId,
-      metadata: {
-        name: this.wcConfig.name,
-        description: this.wcConfig.description,
-        url: this.wcConfig.url,
-        icons: this.wcConfig.icons,
-      },
-    });
+    // Get shared provider singleton (prevents multiple WC Core initializations)
+    this.provider = await getSharedProvider(this.wcConfig);
 
-    // Subscribe to session events
-    this.provider.on("session_delete", () => {
-      this.session = null;
-      this._accounts = [];
-      this.clearPersistedSession();
-    });
+    // Subscribe to session events (remove first to prevent duplicates)
+    this.provider.off("session_delete", this.handleSessionDelete);
+    this.provider.on("session_delete", this.handleSessionDelete);
 
     // Try to restore existing session
     await this.tryRestoreSession();
 
     this.initialized = true;
   }
+
+  /**
+   * Handler for session deletion events.
+   * Bound as an instance method to allow proper removal.
+   */
+  private handleSessionDelete = (): void => {
+    this.session = null;
+    this._accounts = [];
+    this.clearPersistedSession();
+  };
+
+  /**
+   * Handler for display_uri events.
+   * Bound as an instance method to allow proper removal.
+   */
+  private handleDisplayUri = (uri: string): void => {
+    modalHandler?.({ type: "show", uri, walletName: this.name });
+  };
 
   private async tryRestoreSession(): Promise<void> {
     if (!BROWSER || !this.provider) return;
@@ -223,10 +310,9 @@ export class WalletConnectAdapter implements WalletAdapter {
       this._accounts = [];
     }
 
-    // Set up URI display handler
-    this.provider.on("display_uri", (uri: string) => {
-      modalHandler?.({ type: "show", uri, walletName: this.name });
-    });
+    // Set up URI display handler (remove first to prevent duplicates)
+    this.provider.off("display_uri", this.handleDisplayUri);
+    this.provider.on("display_uri", this.handleDisplayUri);
 
     // Connect with required namespaces
     const connectParams = {
@@ -440,6 +526,27 @@ export class WalletConnectAdapter implements WalletAdapter {
     this.provider = null;
     this._accounts = [];
     this.initialized = false;
+  }
+
+  /**
+   * Clean up adapter resources.
+   * Removes event listeners but preserves the shared provider.
+   */
+  async destroy(): Promise<void> {
+    // Remove our event listeners from the shared provider
+    if (this.provider) {
+      this.provider.off("session_delete", this.handleSessionDelete);
+      this.provider.off("display_uri", this.handleDisplayUri);
+    }
+
+    // Reset instance state (but don't destroy the shared provider)
+    this.session = null;
+    this.provider = null;
+    this._accounts = [];
+    this.initialized = false;
+    this.initPromise = null;
+    // Note: We don't clear the persisted session here because the shared
+    // provider may still have an active session for other adapter instances
   }
 }
 

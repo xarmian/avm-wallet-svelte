@@ -25,6 +25,7 @@ export {
   WalletConnectAdapter,
   createWalletConnectAdapter,
   onWalletConnectModal,
+  destroySharedProvider,
   type WalletConnectModalEvent,
   type WalletConnectModalHandler,
 } from "./walletconnect.js";

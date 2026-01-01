@@ -140,6 +140,13 @@ export interface WalletAdapter {
    * @throws Error if authentication fails
    */
   authenticate?(address: string): Promise<string>;
+
+  /**
+   * Clean up adapter resources.
+   * Should be called when the adapter is no longer needed.
+   * Disconnects any active sessions and releases resources.
+   */
+  destroy?(): Promise<void>;
 }
 
 /**

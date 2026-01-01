@@ -46,9 +46,12 @@ export class WalletRegistry {
   private config: WalletAdapterConfig | null = null;
   private wcConfig: WalletConnectConfig | null = null;
   private enabledWallets: WalletId[] = [];
+  private initPromise: Promise<void> | null = null;
 
   /**
    * Initialize the registry with network configuration.
+   * If already initialized with compatible config, reuses existing adapters.
+   * Multiple concurrent calls will wait for the first initialization to complete.
    * @param config - Network configuration
    * @param enabledWallets - List of wallet IDs to enable
    * @param wcConfig - Optional WalletConnect configuration
@@ -58,10 +61,44 @@ export class WalletRegistry {
     enabledWallets: WalletId[],
     wcConfig?: WalletConnectConfig
   ): Promise<void> {
+    // If initialization is already in progress, wait for it
+    if (this.initPromise) {
+      await this.initPromise;
+      // After waiting, check if the completed init is compatible
+      if (this.isCompatibleConfig(config, enabledWallets, wcConfig)) {
+        return;
+      }
+      // Config changed, need to reinitialize (will get new lock below)
+    }
+
+    // Check if we can reuse existing initialization
+    if (this.isCompatibleConfig(config, enabledWallets, wcConfig)) {
+      return;
+    }
+
+    // Start initialization with a lock
+    this.initPromise = this.doInitialize(config, enabledWallets, wcConfig);
+    try {
+      await this.initPromise;
+    } finally {
+      this.initPromise = null;
+    }
+  }
+
+  /**
+   * Internal initialization logic.
+   */
+  private async doInitialize(
+    config: WalletAdapterConfig,
+    enabledWallets: WalletId[],
+    wcConfig?: WalletConnectConfig
+  ): Promise<void> {
+    // Clean up existing adapters before reinitializing
+    await this.destroy();
+
     this.config = config;
     this.wcConfig = wcConfig ?? null;
     this.enabledWallets = enabledWallets;
-    this.adapters.clear();
 
     for (const walletId of enabledWallets) {
       const factory = factories[walletId];
@@ -87,6 +124,42 @@ export class WalletRegistry {
         console.error(`Failed to initialize ${walletId} adapter:`, error);
       }
     }
+  }
+
+  /**
+   * Check if the provided config is compatible with current initialization.
+   * Returns true if we can reuse existing adapters.
+   */
+  private isCompatibleConfig(
+    config: WalletAdapterConfig,
+    enabledWallets: WalletId[],
+    wcConfig?: WalletConnectConfig
+  ): boolean {
+    if (!this.config) return false;
+
+    // Check if network config matches (most important - determines which chain we're on)
+    const configMatches =
+      this.config.genesisHash === config.genesisHash &&
+      this.config.genesisId === config.genesisId &&
+      this.config.chainId === config.chainId;
+
+    if (!configMatches) return false;
+
+    // Check if enabled wallets are a subset of what we already have
+    // (allow reuse if new instance requests fewer or same wallets)
+    const hasAllWallets = enabledWallets.every((id) => this.adapters.has(id));
+    if (!hasAllWallets) return false;
+
+    // Check WalletConnect config if any WC wallets are enabled
+    const wcWallets: WalletId[] = ["walletconnect", "biatec", "voiwallet"];
+    const hasWcWallets = enabledWallets.some((id) => wcWallets.includes(id));
+    if (hasWcWallets) {
+      if (!wcConfig && !this.wcConfig) return true;
+      if (!wcConfig || !this.wcConfig) return false;
+      if (wcConfig.projectId !== this.wcConfig.projectId) return false;
+    }
+
+    return true;
   }
 
   /**
@@ -171,6 +244,30 @@ export class WalletRegistry {
    */
   getConfig(): WalletAdapterConfig | null {
     return this.config;
+  }
+
+  /**
+   * Clean up all adapters and reset the registry.
+   * Should be called before reinitializing or when the component unmounts.
+   */
+  async destroy(): Promise<void> {
+    // Call destroy on each adapter that supports it
+    for (const adapter of this.adapters.values()) {
+      try {
+        if (adapter.destroy) {
+          await adapter.destroy();
+        } else if (adapter.isConnected()) {
+          await adapter.disconnect();
+        }
+      } catch (error) {
+        console.debug(`Failed to destroy ${adapter.name}:`, error);
+      }
+    }
+
+    this.adapters.clear();
+    this.config = null;
+    this.wcConfig = null;
+    this.enabledWallets = [];
   }
 }
 
