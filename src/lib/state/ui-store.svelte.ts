@@ -11,6 +11,7 @@ export type ViewState = "selector" | "add-account";
  */
 export const uiState = $state({
   showWalletList: false,
+  targetInstance: null as string | null,
   currentView: "selector" as ViewState,
   authModal: { show: false, address: "", error: "" },
   wcModal: { show: false, uri: "", walletName: "" },
@@ -21,9 +22,10 @@ export const uiState = $state({
  */
 export const uiStore = {
   // Wallet list actions
-  toggleWalletList(): void {
-    console.log('[uiStore] toggleWalletList called, current:', uiState.showWalletList);
+  toggleWalletList(instanceId?: string): void {
+    console.log('[uiStore] toggleWalletList called, current:', uiState.showWalletList, 'instance:', instanceId);
     uiState.showWalletList = !uiState.showWalletList;
+    uiState.targetInstance = instanceId ?? null;
     // Reset to selector view when opening
     if (uiState.showWalletList) {
       uiState.currentView = "selector";
@@ -31,13 +33,15 @@ export const uiStore = {
     console.log('[uiStore] toggleWalletList done, new:', uiState.showWalletList);
   },
 
-  openWalletList(): void {
+  openWalletList(instanceId?: string): void {
     uiState.showWalletList = true;
+    uiState.targetInstance = instanceId ?? null;
     uiState.currentView = "selector";
   },
 
   closeWalletList(): void {
     uiState.showWalletList = false;
+    uiState.targetInstance = null;
     uiState.currentView = "selector";
   },
 
@@ -81,6 +85,7 @@ export const uiStore = {
   // Close all modals
   closeAll(): void {
     uiState.showWalletList = false;
+    uiState.targetInstance = null;
     uiState.currentView = "selector";
     uiState.authModal = { show: false, address: "", error: "" };
     uiState.wcModal = { show: false, uri: "", walletName: "" };
@@ -89,6 +94,9 @@ export const uiStore = {
   // Getters for backward compatibility
   get showWalletList() {
     return uiState.showWalletList;
+  },
+  get targetInstance() {
+    return uiState.targetInstance;
   },
   get currentView() {
     return uiState.currentView;

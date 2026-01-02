@@ -31,6 +31,8 @@
     wcConfig?: WalletConnectConfig;
     /** Additional CSS classes for the container */
     class?: string;
+    /** Instance ID for targeted external control via uiStore.openWalletList(id) */
+    id?: string;
 
     /** Auto sign-in after connecting */
     autoSignIn?: boolean;
@@ -59,6 +61,7 @@
     displayMode = "dropdown",
     wcConfig,
     class: className = "",
+    id,
     autoSignIn = false,
     showSignInButton = false,
     showSignInStatus = true,
@@ -73,12 +76,30 @@
   // UI state - uses global uiStore for external control
   let showList = $state(false);
   let currentView = $state<"selector" | "add-account">("selector");
+  let openedViaGlobal = $state(false); // Track if opened via uiStore
 
-  // NOTE: Global uiState.showWalletList is only for EXTERNAL programmatic control
-  // (e.g., calling uiStore.openWalletList() from outside the component).
-  // Multiple Web3Wallet instances each manage their own local showList state.
-  // We intentionally do NOT sync local state to global state here to avoid
-  // one component's open/close affecting other instances.
+  // Sync with global uiState for external control (e.g., uiStore.openWalletList(id))
+  // Only react if this instance is specifically targeted by id
+  $effect(() => {
+    const globalShowList = uiState.showWalletList;
+    const targetInstance = uiState.targetInstance;
+
+    // Only react if we have an id AND we're specifically targeted
+    // This prevents instances from reacting to untargeted calls
+    const isTargeted = id !== undefined && targetInstance === id;
+
+    if (isTargeted) {
+      if (globalShowList && !showList) {
+        showList = true;
+        currentView = "selector";
+        openedViaGlobal = true;
+      } else if (!globalShowList && showList && openedViaGlobal) {
+        showList = false;
+        currentView = "selector";
+        openedViaGlobal = false;
+      }
+    }
+  });
 
   // Initialize on mount
   onMount(() => {
@@ -167,6 +188,11 @@
   function closeList() {
     showList = false;
     currentView = "selector";
+    // Only close global state if this instance was opened via uiStore
+    if (openedViaGlobal) {
+      openedViaGlobal = false;
+      uiStore.closeWalletList();
+    }
   }
 
   function formatAddress(address: string): string {

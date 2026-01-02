@@ -331,6 +331,7 @@
 				<div class="wallet-container">
 					{#key `${displayMode}-${autoSignIn}-${showSignInButton}-${showSignInStatus}-${allowWatchAccounts}`}
 						<Web3Wallet
+							id="main"
 							{algodClient}
 							indexerClient={indexerClient}
 							{displayMode}
@@ -353,6 +354,7 @@
 				<div class="wallet-container">
 					{#key `custom-${displayMode}`}
 						<Web3Wallet
+							id="custom"
 							{algodClient}
 							{displayMode}
 							{allowWatchAccounts}
@@ -382,11 +384,11 @@
 				<div class="inline-demo">
 					<div class="inline-item">
 						<span>Primary:</span>
-						<Web3Wallet {algodClient} {wcConfig} displayMode="dropdown" />
+						<Web3Wallet id="inline-primary" {algodClient} {wcConfig} displayMode="dropdown" />
 					</div>
 					<div class="inline-item">
 						<span>Secondary:</span>
-						<Web3Wallet {algodClient} {wcConfig} displayMode="dropdown" />
+						<Web3Wallet id="inline-secondary" {algodClient} {wcConfig} displayMode="dropdown" />
 					</div>
 				</div>
 			</div>
