@@ -25,9 +25,12 @@ export {
   WalletConnectAdapter,
   createWalletConnectAdapter,
   onWalletConnectModal,
+  onSessionStateChange,
   destroySharedProvider,
   type WalletConnectModalEvent,
   type WalletConnectModalHandler,
+  type SessionStateEvent,
+  type SessionStateHandler,
 } from "./walletconnect.js";
 
 // Registry

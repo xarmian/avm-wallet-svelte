@@ -40,7 +40,29 @@ export type WalletConnectModalEvent =
   | { type: "show"; uri: string; walletName: string }
   | { type: "hide" };
 
+/**
+ * Event emitter for session state changes.
+ * Components can subscribe to handle session invalidation.
+ */
+export type SessionStateHandler = (event: SessionStateEvent) => void;
+export type SessionStateEvent =
+  | { type: "expired"; walletId: string }
+  | { type: "deleted"; walletId: string }
+  | { type: "disconnected"; walletId: string };
+
 let modalHandler: WalletConnectModalHandler | null = null;
+let sessionStateHandler: SessionStateHandler | null = null;
+
+/**
+ * Register a handler for session state changes.
+ * Use this to update UI when sessions expire or disconnect.
+ */
+export function onSessionStateChange(handler: SessionStateHandler): () => void {
+  sessionStateHandler = handler;
+  return () => {
+    sessionStateHandler = null;
+  };
+}
 
 /**
  * Register a handler for WalletConnect modal events.
@@ -211,6 +233,16 @@ export class WalletConnectAdapter implements WalletAdapter {
     this.provider.off("session_delete", this.handleSessionDelete);
     this.provider.on("session_delete", this.handleSessionDelete);
 
+    // CRITICAL: Subscribe to session_expire - this is what fires when sessions timeout
+    this.provider.off("session_expire", this.handleSessionExpire);
+    this.provider.on("session_expire", this.handleSessionExpire);
+
+    // Subscribe to page visibility changes to validate session on return
+    if (BROWSER) {
+      document.removeEventListener("visibilitychange", this.handleVisibilityChange);
+      document.addEventListener("visibilitychange", this.handleVisibilityChange);
+    }
+
     // Try to restore existing session
     await this.tryRestoreSession();
 
@@ -222,9 +254,29 @@ export class WalletConnectAdapter implements WalletAdapter {
    * Bound as an instance method to allow proper removal.
    */
   private handleSessionDelete = (): void => {
+    console.log(`[${this.id}] Session deleted`);
     this.session = null;
     this._accounts = [];
     this.clearPersistedSession();
+    sessionStateHandler?.({ type: "deleted", walletId: this.id });
+  };
+
+  /**
+   * Handler for session expiration events.
+   * This is CRITICAL - WalletConnect sessions can expire due to:
+   * - Natural timeout (default 7 days)
+   * - Relay server issues
+   * - Wallet app disconnecting
+   */
+  private handleSessionExpire = (args: { topic: string }): void => {
+    console.log(`[${this.id}] Session expired, topic:`, args?.topic);
+    // Only clear if the expired session matches our session
+    if (!this.session || (args?.topic && this.session.topic === args.topic)) {
+      this.session = null;
+      this._accounts = [];
+      this.clearPersistedSession();
+      sessionStateHandler?.({ type: "expired", walletId: this.id });
+    }
   };
 
   /**
@@ -234,6 +286,38 @@ export class WalletConnectAdapter implements WalletAdapter {
   private handleDisplayUri = (uri: string): void => {
     modalHandler?.({ type: "show", uri, walletName: this.name });
   };
+
+  /**
+   * Handler for page visibility changes.
+   * Validates session when user returns to the page.
+   */
+  private handleVisibilityChange = (): void => {
+    if (document.visibilityState === "visible" && this.session) {
+      this.validateSession();
+    }
+  };
+
+  /**
+   * Validate that the current session is still active.
+   * Called on visibility change and can be called proactively.
+   */
+  async validateSession(): Promise<boolean> {
+    if (!this.session || !this.provider) {
+      return false;
+    }
+
+    // Check if provider's session matches our local session
+    if (!this.provider.session || this.provider.session.topic !== this.session.topic) {
+      console.log(`[${this.id}] Session mismatch detected during validation`);
+      this.session = null;
+      this._accounts = [];
+      this.clearPersistedSession();
+      sessionStateHandler?.({ type: "disconnected", walletId: this.id });
+      return false;
+    }
+
+    return true;
+  }
 
   private async tryRestoreSession(): Promise<void> {
     if (!BROWSER || !this.provider) return;
@@ -536,7 +620,13 @@ export class WalletConnectAdapter implements WalletAdapter {
     // Remove our event listeners from the shared provider
     if (this.provider) {
       this.provider.off("session_delete", this.handleSessionDelete);
+      this.provider.off("session_expire", this.handleSessionExpire);
       this.provider.off("display_uri", this.handleDisplayUri);
+    }
+
+    // Remove visibility change listener
+    if (BROWSER) {
+      document.removeEventListener("visibilitychange", this.handleVisibilityChange);
     }
 
     // Reset instance state (but don't destroy the shared provider)

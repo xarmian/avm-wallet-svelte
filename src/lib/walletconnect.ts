@@ -310,11 +310,28 @@ async function subscribeToEvents(universalProvider: InstanceType<typeof Universa
 	try {
 		universalProvider.on('session_delete', () => {
 			console.log('The user has disconnected the session from their wallet.');
+			// Clear local session state
+			session = null;
+			sessionOwner = null;
+			if (typeof window !== 'undefined' && window.localStorage) {
+				localStorage.removeItem('wc-session-owner');
+			}
 		});
+
+		// CRITICAL: Handle session expiration - this fires when sessions timeout
+		universalProvider.on('session_expire', (args: { topic: string }) => {
+			console.log('WalletConnect session expired, topic:', args?.topic);
+			// Clear session state if the expired session matches our session
+			if (!session || (args?.topic && session.topic === args.topic)) {
+				session = null;
+				sessionOwner = null;
+				if (typeof window !== 'undefined' && window.localStorage) {
+					localStorage.removeItem('wc-session-owner');
+				}
+			}
+		});
+
 		subscribed = true;
-		/*universalProvider.on("session_connect", () => {
-            console.log("The user has connected their wallet.");
-        });*/
 	} catch (e) {
 		console.log(e);
 	}

@@ -53,6 +53,7 @@ export {
   createWalletConnectAdapter,
   createWatchAdapter,
   onWalletConnectModal,
+  onSessionStateChange,
 } from "./adapters/index.js";
 
 // Adapter types
@@ -67,6 +68,8 @@ export type {
   WalletInfo,
   WalletConnectModalEvent,
   WalletConnectModalHandler,
+  SessionStateEvent,
+  SessionStateHandler,
 } from "./adapters/index.js";
 
 // =============================================================================
