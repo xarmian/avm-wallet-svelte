@@ -53,7 +53,32 @@ async function initialize() {
 				// Validate that the session has the required Algorand namespace configuration
 				const algorandNamespace = lastSession.namespaces['algorand'];
 				const hasRequiredMethods = algorandNamespace?.methods?.includes('algo_signTxn');
-				const hasRequiredChain = algorandNamespace?.chains?.includes(CHAIN_ID!);
+
+				// Check chain ID - be flexible about matching
+				const sessionChains = algorandNamespace?.chains || [];
+				const storedChainId = typeof window !== 'undefined' ? localStorage.getItem('wc-chainId') : null;
+				let hasRequiredChain = sessionChains.includes(CHAIN_ID!);
+
+				// If computed chain ID doesn't match, try stored chain ID or accept any algorand chain
+				if (!hasRequiredChain && sessionChains.length > 0) {
+					if (storedChainId && sessionChains.includes(storedChainId)) {
+						console.log('Using stored chain ID:', storedChainId);
+						CHAIN_ID = storedChainId;
+						hasRequiredChain = true;
+					} else {
+						// Accept any algorand chain from the session
+						const sessionChainId = sessionChains.find((c: string) => c.startsWith('algorand:'));
+						if (sessionChainId) {
+							console.log(`Chain ID mismatch - computed: ${CHAIN_ID}, session: ${sessionChainId}. Using session chain ID.`);
+							CHAIN_ID = sessionChainId;
+							hasRequiredChain = true;
+							// Store for future reference
+							if (typeof window !== 'undefined') {
+								localStorage.setItem('wc-chainId', sessionChainId);
+							}
+						}
+					}
+				}
 
 				if (
 					algorandNamespace &&
@@ -77,8 +102,15 @@ async function initialize() {
 						console.log('Session found but no owner - will be claimed on next connect');
 					}
 				} else {
-					// Session is invalid - disconnect it
-					console.log('Found invalid WalletConnect session, cleaning up...');
+					// Session is invalid - log detailed reason
+					console.log('Found invalid WalletConnect session, cleaning up...', {
+						hasNamespace: !!algorandNamespace,
+						hasAccounts: !!algorandNamespace?.accounts,
+						hasRequiredMethods,
+						hasRequiredChain,
+						sessionChains,
+						computedChainId: CHAIN_ID
+					});
 					try {
 						await universalProvider.disconnect();
 					} catch (e) {
@@ -88,6 +120,7 @@ async function initialize() {
 					sessionOwner = null;
 					if (typeof window !== 'undefined' && window.localStorage) {
 						localStorage.removeItem('wc-session-owner');
+						localStorage.removeItem('wc-chainId');
 					}
 				}
 			}
@@ -275,9 +308,12 @@ export async function connect(walletName?: string): Promise<WalletConnectionResu
 			// Set the session owner to the wallet that created this session
 			sessionOwner = intendedWalletName;
 			console.log('Session owner set to:', sessionOwner);
-			// Persist session owner to localStorage
+			// Persist session owner and chainId to localStorage
 			if (typeof window !== 'undefined' && window.localStorage) {
 				localStorage.setItem('wc-session-owner', sessionOwner);
+				if (CHAIN_ID) {
+					localStorage.setItem('wc-chainId', CHAIN_ID);
+				}
 			}
 		} else {
 			console.error('❌ No session data received');
@@ -315,6 +351,7 @@ async function subscribeToEvents(universalProvider: InstanceType<typeof Universa
 			sessionOwner = null;
 			if (typeof window !== 'undefined' && window.localStorage) {
 				localStorage.removeItem('wc-session-owner');
+				localStorage.removeItem('wc-chainId');
 			}
 		});
 
@@ -327,6 +364,7 @@ async function subscribeToEvents(universalProvider: InstanceType<typeof Universa
 				sessionOwner = null;
 				if (typeof window !== 'undefined' && window.localStorage) {
 					localStorage.removeItem('wc-session-owner');
+					localStorage.removeItem('wc-chainId');
 				}
 			}
 		});
@@ -343,10 +381,11 @@ export async function disconnect() {
 		await provider.disconnect();
 		session = null;
 	}
-	// Clear session ownership
+	// Clear session ownership and chainId
 	sessionOwner = null;
 	if (typeof window !== 'undefined' && window.localStorage) {
 		localStorage.removeItem('wc-session-owner');
+		localStorage.removeItem('wc-chainId');
 	}
 	hideWalletConnectModal();
 	initialized = false;
@@ -375,8 +414,9 @@ export async function clearSessions(): Promise<void> {
 				}
 			}
 			keysToRemove.forEach((key) => localStorage.removeItem(key));
-			// Also clear session ownership
+			// Also clear session ownership and chainId
 			localStorage.removeItem('wc-session-owner');
+			localStorage.removeItem('wc-chainId');
 		}
 
 		session = null;

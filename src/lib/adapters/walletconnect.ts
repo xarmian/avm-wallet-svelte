@@ -324,30 +324,81 @@ export class WalletConnectAdapter implements WalletAdapter {
 
     // Check for stored session owner
     const storedOwner = localStorage.getItem(`wc-session-owner-${this.id}`);
-    if (storedOwner !== this.id) return;
-
-    const existingSession = this.provider.session;
-    if (!existingSession) return;
-
-    // Validate session
-    const algorandNs = existingSession.namespaces["algorand"];
-    if (
-      !algorandNs ||
-      !algorandNs.methods?.includes("algo_signTxn") ||
-      !algorandNs.chains?.includes(this.chainId!)
-    ) {
-      // Invalid session, clean up
-      try {
-        await this.provider.disconnect();
-      } catch {
-        // Ignore disconnect errors
-      }
-      this.clearPersistedSession();
+    if (storedOwner !== this.id) {
+      console.log(`[${this.id}] No stored session owner or mismatch: stored=${storedOwner}, expected=${this.id}`);
       return;
     }
 
+    const existingSession = this.provider.session;
+    if (!existingSession) {
+      console.log(`[${this.id}] No existing session in provider`);
+      return;
+    }
+
+    // Validate session has required Algorand namespace
+    const algorandNs = existingSession.namespaces["algorand"];
+    if (!algorandNs) {
+      console.log(`[${this.id}] Session missing algorand namespace`);
+      await this.cleanupInvalidSession();
+      return;
+    }
+
+    if (!algorandNs.methods?.includes("algo_signTxn")) {
+      console.log(`[${this.id}] Session missing algo_signTxn method`);
+      await this.cleanupInvalidSession();
+      return;
+    }
+
+    // Check chain ID - but be more flexible about matching
+    // The session stores chains like "algorand:xxxxx" - we need to match on the prefix
+    const sessionChains = algorandNs.chains || [];
+
+    // First, try to restore the stored chainId from when the session was created
+    const storedChainId = localStorage.getItem(`wc-chainId-${this.id}`);
+
+    // Check if either our computed chainId or the stored chainId matches
+    const chainMatches = sessionChains.includes(this.chainId!) ||
+                        (storedChainId && sessionChains.includes(storedChainId));
+
+    if (!chainMatches) {
+      console.log(`[${this.id}] Chain ID mismatch - session chains: ${JSON.stringify(sessionChains)}, computed: ${this.chainId}, stored: ${storedChainId}`);
+
+      // If network genuinely changed, clean up the old session
+      // But if we have a session with ANY algorand chain, try to use it
+      const hasAlgorandChain = sessionChains.some((c: string) => c.startsWith("algorand:"));
+      if (hasAlgorandChain && sessionChains.length > 0) {
+        // Use the session's chain ID instead of our computed one
+        // This handles cases where the genesis hash computation differs slightly
+        const sessionChainId = sessionChains.find((c: string) => c.startsWith("algorand:"));
+        if (sessionChainId) {
+          console.log(`[${this.id}] Using session's chain ID instead: ${sessionChainId}`);
+          this.chainId = sessionChainId;
+          // Update stored chainId
+          localStorage.setItem(`wc-chainId-${this.id}`, sessionChainId);
+        }
+      } else {
+        await this.cleanupInvalidSession();
+        return;
+      }
+    }
+
+    console.log(`[${this.id}] Session restored successfully - topic: ${existingSession.topic}, accounts: ${algorandNs.accounts?.length || 0}`);
     this.session = existingSession as WCSession;
     this._accounts = this.extractAccounts(algorandNs.accounts || []);
+  }
+
+  /**
+   * Clean up an invalid session.
+   */
+  private async cleanupInvalidSession(): Promise<void> {
+    try {
+      if (this.provider?.session) {
+        await this.provider.disconnect();
+      }
+    } catch {
+      // Ignore disconnect errors
+    }
+    this.clearPersistedSession();
   }
 
   private extractAccounts(wcAccounts: string[]): WalletAccount[] {
@@ -360,11 +411,16 @@ export class WalletConnectAdapter implements WalletAdapter {
   private persistSession(): void {
     if (!BROWSER) return;
     localStorage.setItem(`wc-session-owner-${this.id}`, this.id);
+    // Also persist the chainId used for this session
+    if (this.chainId) {
+      localStorage.setItem(`wc-chainId-${this.id}`, this.chainId);
+    }
   }
 
   private clearPersistedSession(): void {
     if (!BROWSER) return;
     localStorage.removeItem(`wc-session-owner-${this.id}`);
+    localStorage.removeItem(`wc-chainId-${this.id}`);
   }
 
   async connect(): Promise<WalletAccount[]> {
