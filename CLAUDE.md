@@ -166,6 +166,14 @@ npm run dev
 
 The demo page is at `src/routes/+page.svelte`.
 
+## Release Process
+
+1. Bump the version in `package.json`
+2. Commit: `git commit -am "vX.Y.Z"`
+3. Tag: `git tag vX.Y.Z`
+4. Push with tags: `git push origin main --tags`
+5. The `publish.yml` workflow automatically handles npm publish (with OIDC provenance) and GitHub Release creation
+
 ## Migration
 
 See [MIGRATION.md](./MIGRATION.md) for upgrading from v1.x to v2.0.
