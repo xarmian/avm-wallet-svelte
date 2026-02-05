@@ -3,6 +3,7 @@ obvious issues that need to be addressed before this should be considered usable
 in any sort of production capacity. Please limit use to Testnets only!
 
 ## AVM Wallet Web3 Svelte Component for Algoand-based Networks
+
 This is a component for connecting to AVM (Algorand) based wallets. The component exposes a
 "Connect Wallet" button that can be placed within your application UI. When no wallets are connected,
 the button displays "Connect Wallet". When one or more wallets is connected, the button displays
@@ -10,32 +11,38 @@ the address of the connected wallet. Connected wallets are stored in Browser Loc
 connections are restored automatically.
 
 The component supports:
-* Fast wallet switching, detectable through a svelte store subscription (see below)
-* Multiple wallets and accounts connected simultaneously
-* Authentication token creation and storage
-* Universal signing API to sign and transmit transactions using the current selected wallet
+
+- Fast wallet switching, detectable through a svelte store subscription (see below)
+- Multiple wallets and accounts connected simultaneously
+- Authentication token creation and storage
+- Universal signing API to sign and transmit transactions using the current selected wallet
 
 Current wallets supported:
-* Pera Wallet - https://perawallet.app/
-* Defly Wallet - https://defly.app/
-* Kibisis - https://kibis.is/
-* Lute - https://lute.app/
-* WalletConnect - https://walletconnect.com/
+
+- Pera Wallet - https://perawallet.app/
+- Defly Wallet - https://defly.app/
+- Kibisis - https://kibis.is/
+- Lute - https://lute.app/
+- WalletConnect - https://walletconnect.com/
 
 ### Demo
+
 Example implementation can be seen here: https://nftnavigator.xyz/
 
 ### Install Package
+
 ```
 npm install avm-wallet-svelte
 ```
 
 ### Import Component
+
 ```
 import { Web3Wallet } from 'avm-wallet-svelte';
 ```
 
 ### Use Component
+
 ```
 <Web3Wallet />
 ```
@@ -95,8 +102,10 @@ const projectId = '[project id obtained from walletconnect cloud portal]';
 }}>
 
 ### Stores
+
 This package utilizes stores to expose the list of connected wallets and the user's currently selected wallet,
 making these available by importing and subscribing to the stores:
+
 ```
 import { selectedWallet, connectedWallets } from 'avm-wallet-svelte';
 
@@ -107,7 +116,9 @@ import { selectedWallet, connectedWallets } from 'avm-wallet-svelte';
 ```
 
 ### Signing Transactions
+
 Send transactions to the current selected wallet and sign them:
+
 ```
 import { signAndSendTransactions, selectedWallet, ProviderStore } from 'avm-wallet-svelte';
 import { get } from 'svelte/store';
@@ -155,5 +166,6 @@ secure cookie storage and can be used for authentication. Token expiration is cu
 with plans to be customizable in the future.
 
 ### Roadmap
-* Improve layout flexibility and add styling options
-* Consistent error handling
+
+- Improve layout flexibility and add styling options
+- Consistent error handling
