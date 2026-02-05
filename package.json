@@ -54,6 +54,10 @@
 	"svelte": "./dist/index.js",
 	"types": "./dist/index.d.ts",
 	"type": "module",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/xarmian/avm-wallet-svelte"
+	},
 	"dependencies": {
 		"@agoralabs-sh/avm-web-provider": "^1.7.0",
 		"@blockshake/defly-connect": "^1.2.1",
