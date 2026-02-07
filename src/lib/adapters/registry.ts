@@ -47,6 +47,11 @@ export class WalletRegistry {
 	private wcConfig: WalletConnectConfig | null = null;
 	private enabledWallets: WalletId[] = [];
 	private initPromise: Promise<void> | null = null;
+	private readonly scopeId: string;
+
+	constructor(scopeId = 'default') {
+		this.scopeId = scopeId;
+	}
 
 	/**
 	 * Initialize the registry with network configuration.
@@ -110,12 +115,14 @@ export class WalletRegistry {
 			try {
 				const adapter = factory();
 
-				// Set WalletConnect config for WC-based adapters
+				// Set WalletConnect config and scope for WC-based adapters
 				if (
 					wcConfig &&
 					(walletId === 'walletconnect' || walletId === 'biatec' || walletId === 'voiwallet')
 				) {
-					(adapter as WalletConnectAdapter).setWalletConnectConfig(wcConfig);
+					const wcAdapter = adapter as WalletConnectAdapter;
+					wcAdapter.setWalletConnectConfig(wcConfig);
+					wcAdapter.setScopeId(this.scopeId);
 				}
 
 				await adapter.initialize(config);
@@ -244,6 +251,13 @@ export class WalletRegistry {
 	 */
 	getConfig(): WalletAdapterConfig | null {
 		return this.config;
+	}
+
+	/**
+	 * Get the scope ID for this registry.
+	 */
+	getScopeId(): string {
+		return this.scopeId;
 	}
 
 	/**

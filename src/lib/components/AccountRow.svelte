@@ -1,7 +1,10 @@
 <script lang="ts">
 	import type { ConnectedAccount } from '../state/types.js';
 
-	import { registry } from '../adapters/index.js';
+	import { getContext } from 'svelte';
+	import { SCOPE_CONTEXT_KEY, type WalletScope } from '../state/scope.svelte.js';
+
+	const { registry } = getContext<WalletScope>(SCOPE_CONTEXT_KEY);
 
 	interface Props {
 		account: ConnectedAccount;

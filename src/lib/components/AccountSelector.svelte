@@ -1,10 +1,11 @@
 <script lang="ts">
-	import { walletStore } from '../state/wallet-store.svelte.js';
-	import { uiStore } from '../state/ui-store.svelte.js';
-	import { registry } from '../adapters/index.js';
+	import { getContext } from 'svelte';
+	import { SCOPE_CONTEXT_KEY, type WalletScope } from '../state/scope.svelte.js';
 	import type { ConnectedAccount } from '../state/types.js';
 
 	import AccountRow from './AccountRow.svelte';
+
+	const { walletStore, uiStore, registry } = getContext<WalletScope>(SCOPE_CONTEXT_KEY);
 
 	interface Props {
 		showSignInStatus?: boolean;

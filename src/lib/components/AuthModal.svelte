@@ -1,5 +1,8 @@
 <script lang="ts">
-	import { uiStore } from '../state/ui-store.svelte.js';
+	import { getContext } from 'svelte';
+	import { SCOPE_CONTEXT_KEY, type WalletScope } from '../state/scope.svelte.js';
+
+	const { uiStore } = getContext<WalletScope>(SCOPE_CONTEXT_KEY);
 
 	const authModal = $derived(uiStore.authModal);
 

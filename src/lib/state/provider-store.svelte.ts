@@ -2,10 +2,11 @@ import type { Algodv2, Indexer } from 'algosdk';
 import type { WalletConnectConfig } from '../adapters/types.js';
 
 /**
- * Provider Store for managing Algorand network clients.
+ * Create the provider store for managing Algorand network clients.
  * Uses Svelte 5 runes for reactive state management.
+ * @param scopeId - Scope identifier for identification purposes. Ephemeral store, no storage keys.
  */
-function createProviderStore() {
+export function createProviderStore(scopeId = 'default') {
 	// State using $state rune
 	let algodClient = $state<Algodv2 | null>(null);
 	let indexerClient = $state<Indexer | null>(null);

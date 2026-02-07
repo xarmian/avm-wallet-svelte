@@ -9,44 +9,46 @@ import type {
 	AccountRemovedHandler
 } from './types.js';
 
-const STORAGE_KEY = 'avm-wallet-state';
-const TOKEN_PREFIX = 'avm-wallet-token-';
-
-/**
- * Load persisted state from localStorage.
- */
-function loadPersistedState(): PersistedState | null {
-	if (!BROWSER) return null;
-
-	try {
-		const stored = localStorage.getItem(STORAGE_KEY);
-		if (stored) {
-			return JSON.parse(stored);
-		}
-	} catch (e) {
-		console.warn('Failed to load persisted wallet state:', e);
-	}
-	return null;
-}
-
-/**
- * Save state to localStorage.
- */
-function persistState(state: PersistedState): void {
-	if (!BROWSER) return;
-
-	try {
-		localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-	} catch (e) {
-		console.warn('Failed to persist wallet state:', e);
-	}
-}
-
 /**
  * Create the wallet store.
  * Uses Svelte 5 runes for reactive state management.
+ * @param scopeId - Scope identifier for storage key namespacing. 'default' preserves existing keys.
  */
-function createWalletStore() {
+export function createWalletStore(scopeId = 'default') {
+	const STORAGE_KEY = scopeId === 'default' ? 'avm-wallet-state' : `avm-wallet-state-${scopeId}`;
+	const TOKEN_PREFIX =
+		scopeId === 'default' ? 'avm-wallet-token-' : `avm-wallet-token-${scopeId}-`;
+
+	/**
+	 * Load persisted state from localStorage.
+	 */
+	function loadPersistedState(): PersistedState | null {
+		if (!BROWSER) return null;
+
+		try {
+			const stored = localStorage.getItem(STORAGE_KEY);
+			if (stored) {
+				return JSON.parse(stored);
+			}
+		} catch (e) {
+			console.warn('Failed to load persisted wallet state:', e);
+		}
+		return null;
+	}
+
+	/**
+	 * Save state to localStorage.
+	 */
+	function persistState(state: PersistedState): void {
+		if (!BROWSER) return;
+
+		try {
+			localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+		} catch (e) {
+			console.warn('Failed to persist wallet state:', e);
+		}
+	}
+
 	// Load initial state
 	const persisted = loadPersistedState();
 

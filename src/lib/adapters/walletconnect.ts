@@ -50,27 +50,40 @@ export type SessionStateEvent =
 	| { type: 'deleted'; walletId: string }
 	| { type: 'disconnected'; walletId: string };
 
-let modalHandler: WalletConnectModalHandler | null = null;
-let sessionStateHandler: SessionStateHandler | null = null;
+/**
+ * Scoped handler maps. Each scope gets its own modal and session handlers.
+ */
+const modalHandlers = new Map<string, WalletConnectModalHandler>();
+const sessionStateHandlers = new Map<string, SessionStateHandler>();
 
 /**
  * Register a handler for session state changes.
  * Use this to update UI when sessions expire or disconnect.
+ * @param handler - The handler function
+ * @param scopeId - Scope identifier (defaults to 'default')
  */
-export function onSessionStateChange(handler: SessionStateHandler): () => void {
-	sessionStateHandler = handler;
+export function onSessionStateChange(
+	handler: SessionStateHandler,
+	scopeId = 'default'
+): () => void {
+	sessionStateHandlers.set(scopeId, handler);
 	return () => {
-		sessionStateHandler = null;
+		sessionStateHandlers.delete(scopeId);
 	};
 }
 
 /**
  * Register a handler for WalletConnect modal events.
+ * @param handler - The handler function
+ * @param scopeId - Scope identifier (defaults to 'default')
  */
-export function onWalletConnectModal(handler: WalletConnectModalHandler): () => void {
-	modalHandler = handler;
+export function onWalletConnectModal(
+	handler: WalletConnectModalHandler,
+	scopeId = 'default'
+): () => void {
+	modalHandlers.set(scopeId, handler);
 	return () => {
-		modalHandler = null;
+		modalHandlers.delete(scopeId);
 	};
 }
 
@@ -175,6 +188,7 @@ export class WalletConnectAdapter implements WalletAdapter {
 	private _accounts: WalletAccount[] = [];
 	private initialized = false;
 	private initPromise: Promise<void> | null = null;
+	private scopeId = 'default';
 
 	constructor(variant: 'walletconnect' | 'biatec' | 'voiwallet' = 'walletconnect') {
 		this.id = variant;
@@ -204,6 +218,32 @@ export class WalletConnectAdapter implements WalletAdapter {
 	 */
 	setWalletConnectConfig(wcConfig: WalletConnectConfig): void {
 		this.wcConfig = wcConfig;
+	}
+
+	/**
+	 * Set the scope ID for this adapter.
+	 * Used to namespace localStorage keys and handler lookups.
+	 */
+	setScopeId(id: string): void {
+		this.scopeId = id;
+	}
+
+	/**
+	 * Get the scoped localStorage key for session owner.
+	 */
+	private get sessionOwnerKey(): string {
+		return this.scopeId === 'default'
+			? `wc-session-owner-${this.id}`
+			: `wc-session-owner-${this.scopeId}-${this.id}`;
+	}
+
+	/**
+	 * Get the scoped localStorage key for chain ID.
+	 */
+	private get chainIdKey(): string {
+		return this.scopeId === 'default'
+			? `wc-chainId-${this.id}`
+			: `wc-chainId-${this.scopeId}-${this.id}`;
 	}
 
 	private async ensureInitialized(): Promise<void> {
@@ -255,12 +295,15 @@ export class WalletConnectAdapter implements WalletAdapter {
 	 * Handler for session deletion events.
 	 * Bound as an instance method to allow proper removal.
 	 */
-	private handleSessionDelete = (): void => {
-		console.log(`[${this.id}] Session deleted`);
-		this.session = null;
-		this._accounts = [];
-		this.clearPersistedSession();
-		sessionStateHandler?.({ type: 'deleted', walletId: this.id });
+	private handleSessionDelete = (args: { topic: string }): void => {
+		// Only clear if the deleted session matches our session
+		if (!this.session || (args?.topic && this.session.topic === args.topic)) {
+			console.log(`[${this.id}:${this.scopeId}] Session deleted, topic:`, args?.topic);
+			this.session = null;
+			this._accounts = [];
+			this.clearPersistedSession();
+			sessionStateHandlers.get(this.scopeId)?.({ type: 'deleted', walletId: this.id });
+		}
 	};
 
 	/**
@@ -271,13 +314,13 @@ export class WalletConnectAdapter implements WalletAdapter {
 	 * - Wallet app disconnecting
 	 */
 	private handleSessionExpire = (args: { topic: string }): void => {
-		console.log(`[${this.id}] Session expired, topic:`, args?.topic);
+		console.log(`[${this.id}:${this.scopeId}] Session expired, topic:`, args?.topic);
 		// Only clear if the expired session matches our session
 		if (!this.session || (args?.topic && this.session.topic === args.topic)) {
 			this.session = null;
 			this._accounts = [];
 			this.clearPersistedSession();
-			sessionStateHandler?.({ type: 'expired', walletId: this.id });
+			sessionStateHandlers.get(this.scopeId)?.({ type: 'expired', walletId: this.id });
 		}
 	};
 
@@ -286,7 +329,7 @@ export class WalletConnectAdapter implements WalletAdapter {
 	 * Bound as an instance method to allow proper removal.
 	 */
 	private handleDisplayUri = (uri: string): void => {
-		modalHandler?.({ type: 'show', uri, walletName: this.name });
+		modalHandlers.get(this.scopeId)?.({ type: 'show', uri, walletName: this.name });
 	};
 
 	/**
@@ -308,14 +351,30 @@ export class WalletConnectAdapter implements WalletAdapter {
 			return false;
 		}
 
-		// Check if provider's session matches our local session
-		if (!this.provider.session || this.provider.session.topic !== this.session.topic) {
-			console.log(`[${this.id}] Session mismatch detected during validation`);
-			this.session = null;
-			this._accounts = [];
-			this.clearPersistedSession();
-			sessionStateHandler?.({ type: 'disconnected', walletId: this.id });
-			return false;
+		// Check if our session topic still exists in the client's session store
+		try {
+			const allSessions = this.provider.client?.session?.getAll() ?? [];
+			const found = allSessions.some(
+				(s: { topic: string }) => s.topic === this.session!.topic
+			);
+			if (!found) {
+				console.log(`[${this.id}:${this.scopeId}] Session not found in client store during validation`);
+				this.session = null;
+				this._accounts = [];
+				this.clearPersistedSession();
+				sessionStateHandlers.get(this.scopeId)?.({ type: 'disconnected', walletId: this.id });
+				return false;
+			}
+		} catch {
+			// If we can't check sessions, fall back to provider.session check
+			if (!this.provider!.session || this.provider!.session.topic !== this.session!.topic) {
+				console.log(`[${this.id}:${this.scopeId}] Session mismatch detected during validation`);
+				this.session = null;
+				this._accounts = [];
+				this.clearPersistedSession();
+				sessionStateHandlers.get(this.scopeId)?.({ type: 'disconnected', walletId: this.id });
+				return false;
+			}
 		}
 
 		return true;
@@ -325,83 +384,90 @@ export class WalletConnectAdapter implements WalletAdapter {
 		if (!BROWSER || !this.provider) return;
 
 		// Check for stored session owner
-		const storedOwner = localStorage.getItem(`wc-session-owner-${this.id}`);
+		const storedOwner = localStorage.getItem(this.sessionOwnerKey);
 		if (storedOwner !== this.id) {
 			console.log(
-				`[${this.id}] No stored session owner or mismatch: stored=${storedOwner}, expected=${this.id}`
+				`[${this.id}:${this.scopeId}] No stored session owner or mismatch: stored=${storedOwner}, expected=${this.id}`
 			);
 			return;
 		}
 
-		const existingSession = this.provider.session;
+		// Search all sessions for one matching this scope's chain ID
+		let existingSession: WCSession | null = null;
+		try {
+			const allSessions = this.provider.client?.session?.getAll() ?? [];
+			const storedChainId = localStorage.getItem(this.chainIdKey);
+
+			for (const session of allSessions) {
+				const algorandNs = session.namespaces?.['algorand'];
+				if (!algorandNs) continue;
+
+				const sessionChains = algorandNs.chains || [];
+				const chainMatches =
+					sessionChains.includes(this.chainId!) ||
+					(storedChainId && sessionChains.includes(storedChainId));
+
+				if (chainMatches) {
+					existingSession = session as WCSession;
+					break;
+				}
+
+				// Fallback: any algorand chain
+				const hasAlgorandChain = sessionChains.some((c: string) => c.startsWith('algorand:'));
+				if (hasAlgorandChain) {
+					existingSession = session as WCSession;
+					// Use session's chain ID
+					const sessionChainId = sessionChains.find((c: string) => c.startsWith('algorand:'));
+					if (sessionChainId) {
+						this.chainId = sessionChainId;
+						localStorage.setItem(this.chainIdKey, sessionChainId);
+					}
+					break;
+				}
+			}
+		} catch {
+			// Fallback to provider.session for older WC versions
+			existingSession = this.provider.session as WCSession | null;
+		}
+
 		if (!existingSession) {
-			console.log(`[${this.id}] No existing session in provider`);
+			console.log(`[${this.id}:${this.scopeId}] No existing session found`);
 			return;
 		}
 
 		// Validate session has required Algorand namespace
 		const algorandNs = existingSession.namespaces['algorand'];
 		if (!algorandNs) {
-			console.log(`[${this.id}] Session missing algorand namespace`);
-			await this.cleanupInvalidSession();
+			console.log(`[${this.id}:${this.scopeId}] Session missing algorand namespace`);
+			await this.cleanupInvalidSession(existingSession);
 			return;
 		}
 
 		if (!algorandNs.methods?.includes('algo_signTxn')) {
-			console.log(`[${this.id}] Session missing algo_signTxn method`);
-			await this.cleanupInvalidSession();
+			console.log(`[${this.id}:${this.scopeId}] Session missing algo_signTxn method`);
+			await this.cleanupInvalidSession(existingSession);
 			return;
 		}
 
-		// Check chain ID - but be more flexible about matching
-		// The session stores chains like "algorand:xxxxx" - we need to match on the prefix
-		const sessionChains = algorandNs.chains || [];
-
-		// First, try to restore the stored chainId from when the session was created
-		const storedChainId = localStorage.getItem(`wc-chainId-${this.id}`);
-
-		// Check if either our computed chainId or the stored chainId matches
-		const chainMatches =
-			sessionChains.includes(this.chainId!) ||
-			(storedChainId && sessionChains.includes(storedChainId));
-
-		if (!chainMatches) {
-			console.log(
-				`[${this.id}] Chain ID mismatch - session chains: ${JSON.stringify(sessionChains)}, computed: ${this.chainId}, stored: ${storedChainId}`
-			);
-
-			// If network genuinely changed, clean up the old session
-			// But if we have a session with ANY algorand chain, try to use it
-			const hasAlgorandChain = sessionChains.some((c: string) => c.startsWith('algorand:'));
-			if (hasAlgorandChain && sessionChains.length > 0) {
-				// Use the session's chain ID instead of our computed one
-				// This handles cases where the genesis hash computation differs slightly
-				const sessionChainId = sessionChains.find((c: string) => c.startsWith('algorand:'));
-				if (sessionChainId) {
-					console.log(`[${this.id}] Using session's chain ID instead: ${sessionChainId}`);
-					this.chainId = sessionChainId;
-					// Update stored chainId
-					localStorage.setItem(`wc-chainId-${this.id}`, sessionChainId);
-				}
-			} else {
-				await this.cleanupInvalidSession();
-				return;
-			}
-		}
-
 		console.log(
-			`[${this.id}] Session restored successfully - topic: ${existingSession.topic}, accounts: ${algorandNs.accounts?.length || 0}`
+			`[${this.id}:${this.scopeId}] Session restored successfully - topic: ${existingSession.topic}, accounts: ${algorandNs.accounts?.length || 0}`
 		);
-		this.session = existingSession as WCSession;
+		this.session = existingSession;
 		this._accounts = this.extractAccounts(algorandNs.accounts || []);
 	}
 
 	/**
 	 * Clean up an invalid session.
 	 */
-	private async cleanupInvalidSession(): Promise<void> {
+	private async cleanupInvalidSession(session?: WCSession | null): Promise<void> {
 		try {
-			if (this.provider?.session) {
+			if (session && this.provider?.client) {
+				// Disconnect specific session by topic
+				await this.provider.client.disconnect({
+					topic: session.topic,
+					reason: { code: 6000, message: 'Invalid session' }
+				});
+			} else if (this.provider?.session) {
 				await this.provider.disconnect();
 			}
 		} catch {
@@ -419,17 +485,17 @@ export class WalletConnectAdapter implements WalletAdapter {
 
 	private persistSession(): void {
 		if (!BROWSER) return;
-		localStorage.setItem(`wc-session-owner-${this.id}`, this.id);
+		localStorage.setItem(this.sessionOwnerKey, this.id);
 		// Also persist the chainId used for this session
 		if (this.chainId) {
-			localStorage.setItem(`wc-chainId-${this.id}`, this.chainId);
+			localStorage.setItem(this.chainIdKey, this.chainId);
 		}
 	}
 
 	private clearPersistedSession(): void {
 		if (!BROWSER) return;
-		localStorage.removeItem(`wc-session-owner-${this.id}`);
-		localStorage.removeItem(`wc-chainId-${this.id}`);
+		localStorage.removeItem(this.sessionOwnerKey);
+		localStorage.removeItem(this.chainIdKey);
 	}
 
 	async connect(): Promise<WalletAccount[]> {
@@ -448,13 +514,23 @@ export class WalletConnectAdapter implements WalletAdapter {
 			return this._accounts;
 		}
 
-		// Disconnect any existing session first
+		// Only disconnect sessions owned by THIS scope
+		// Check if the current provider session belongs to us
 		if (this.provider.session) {
-			try {
-				await this.provider.disconnect();
-			} catch {
-				// Ignore disconnect errors
+			const ownerKey = this.sessionOwnerKey;
+			const storedOwner = localStorage.getItem(ownerKey);
+			if (storedOwner === this.id) {
+				// This scope's session — disconnect it to make a new one
+				try {
+					await this.provider.client?.disconnect({
+						topic: this.provider.session.topic,
+						reason: { code: 6000, message: 'Reconnecting' }
+					});
+				} catch {
+					// Ignore disconnect errors
+				}
 			}
+			// If storedOwner !== this.id, another scope owns the session — leave it alone
 			this.session = null;
 			this._accounts = [];
 		}
@@ -478,7 +554,7 @@ export class WalletConnectAdapter implements WalletAdapter {
 			const sessionData = await this.provider.connect(connectParams);
 
 			// Hide modal after connection attempt
-			modalHandler?.({ type: 'hide' });
+			modalHandlers.get(this.scopeId)?.({ type: 'hide' });
 
 			if (!sessionData) {
 				throw new Error('Failed to establish WalletConnect session');
@@ -492,7 +568,7 @@ export class WalletConnectAdapter implements WalletAdapter {
 
 			return this._accounts;
 		} catch (error) {
-			modalHandler?.({ type: 'hide' });
+			modalHandlers.get(this.scopeId)?.({ type: 'hide' });
 			this.clearPersistedSession();
 			throw error;
 		}
@@ -516,14 +592,27 @@ export class WalletConnectAdapter implements WalletAdapter {
 
 	async disconnect(): Promise<void> {
 		try {
-			if (this.provider?.session) {
+			// Disconnect only this specific session by topic
+			if (this.session && this.provider?.client) {
+				try {
+					await this.provider.client.disconnect({
+						topic: this.session.topic,
+						reason: { code: 6000, message: 'User disconnected' }
+					});
+				} catch {
+					// Fallback to provider.disconnect if client.disconnect fails
+					if (this.provider?.session?.topic === this.session.topic) {
+						await this.provider.disconnect();
+					}
+				}
+			} else if (this.provider?.session) {
 				await this.provider.disconnect();
 			}
 		} finally {
 			this.session = null;
 			this._accounts = [];
 			this.clearPersistedSession();
-			modalHandler?.({ type: 'hide' });
+			modalHandlers.get(this.scopeId)?.({ type: 'hide' });
 		}
 	}
 
@@ -542,7 +631,8 @@ export class WalletConnectAdapter implements WalletAdapter {
 		}
 
 		// Validate session is still active
-		if (!this.provider.session || this.provider.session.topic !== this.session.topic) {
+		const isValid = await this.validateSession();
+		if (!isValid) {
 			throw new Error('WalletConnect session is no longer active. Please reconnect.');
 		}
 

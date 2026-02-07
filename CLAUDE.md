@@ -37,15 +37,17 @@ src/lib/
 │   └── index.ts        # Public exports
 ├── state/              # State management with Svelte 5 runes
 │   ├── types.ts        # State types
-│   ├── wallet-store.svelte.ts  # Main wallet state ($state runes)
-│   ├── ui-store.svelte.ts      # UI state (modals, dropdowns)
-│   ├── provider-store.svelte.ts # Algod/Indexer clients
+│   ├── wallet-store.svelte.ts  # Main wallet state (factory + singleton)
+│   ├── ui-store.svelte.ts      # UI state (factory + singleton)
+│   ├── provider-store.svelte.ts # Algod/Indexer clients (factory + singleton)
+│   ├── scope.svelte.ts # WalletScope container for multi-chain scoping
 │   └── index.ts        # Public exports
-├── components/         # Svelte 5 components ($props)
-│   ├── Web3Wallet.svelte       # Main component
-│   ├── WalletList.svelte       # Wallet list
-│   ├── WalletItem.svelte       # Individual wallet
-│   ├── AccountList.svelte      # Connected accounts
+├── components/         # Svelte 5 components ($props, context)
+│   ├── Web3Wallet.svelte       # Main component (sets scope context)
+│   ├── AccountSelector.svelte  # Connected accounts with selection
+│   ├── AccountRow.svelte       # Individual account row
+│   ├── AddAccountView.svelte   # Wallet provider list for connecting
+│   ├── WalletProviderRow.svelte # Individual wallet provider row
 │   ├── AuthModal.svelte        # Authentication modal
 │   ├── WalletConnectModal.svelte # QR code modal
 │   └── index.ts        # Public exports
@@ -87,26 +89,34 @@ The `WalletRegistry` manages adapter instances and handles initialization.
 
 #### 2. State Management (`src/lib/state/`)
 
-Uses Svelte 5 runes for reactive state:
+Uses Svelte 5 runes for reactive state. Each store has a **factory function** and a **singleton export** for backward compat:
 
-- **walletStore**: Connected accounts, selection, auth tokens
-- **uiStore**: Modal visibility, errors
-- **providerStore**: Algod/Indexer clients, genesis info
+- **walletStore** / `createWalletStore(scopeId)`: Connected accounts, selection, auth tokens
+- **uiStore** / `createUIStore(scopeId)`: Modal visibility, errors
+- **providerStore** / `createProviderStore(scopeId)`: Algod/Indexer clients, genesis info
+- **WalletScope** / `createWalletScope(scopeId)`: Bundles all stores + registry for multi-chain
 
 ```typescript
-// Reactive state access
+// Singleton access (default scope — backward compatible)
+import { walletStore } from 'avm-wallet-svelte';
 const account = walletStore.selectedAccount;
-const accounts = walletStore.accounts;
+
+// Scoped access (multi-chain)
+import { getScope } from 'avm-wallet-svelte';
+const voiStore = getScope('voi')?.walletStore;
 ```
+
+**Scoping**: `Web3Wallet` accepts an optional `scope` prop. Each unique scope gets isolated stores and registry. The `'default'` scope reuses module-level singletons. Components receive the scope via Svelte `setContext`/`getContext` using `SCOPE_CONTEXT_KEY`.
 
 #### 3. Components (`src/lib/components/`)
 
-Svelte 5 components using `$props()` and `$state()`:
+Svelte 5 components using `$props()` and `$state()`. Child components read the active `WalletScope` from Svelte context (set by `Web3Wallet`):
 
-- **Web3Wallet**: Main component, initializes adapters and state
-- **WalletList**: Renders available wallets
-- **WalletItem**: Individual wallet with connect/disconnect
-- **AccountList**: Shows connected accounts for a wallet
+- **Web3Wallet**: Main component, creates/reuses scope, initializes adapters and state, sets context
+- **AccountSelector**: Shows connected accounts grouped by wallet, with selection
+- **AccountRow**: Individual account with sign-in/out actions
+- **AddAccountView**: Lists available wallet providers for connecting
+- **WalletProviderRow**: Individual wallet provider with connect button
 - **AuthModal**: Authentication flow
 - **WalletConnectModal**: QR code display
 
@@ -126,12 +136,13 @@ CSS custom properties for theming:
 ### Key Features
 
 - **Multi-wallet support**: Connect multiple wallets simultaneously
+- **Multi-chain scoping**: Concurrent wallet connections on different chains via `scope` prop
 - **Watch accounts**: Monitor addresses without signing capability
 - **WalletConnect**: Supports generic WalletConnect, Biatec, and VoiWallet
 - **Authentication**: Stateless auth with signed transactions (90-day expiration)
 - **CSS Theming**: Full customization via CSS custom properties
 - **Type Safety**: Strict TypeScript with WalletId types
-- **Svelte 5**: Uses $props, $state, $derived, $effect runes
+- **Svelte 5**: Uses $props, $state, $derived, $effect runes, context API
 
 ### Authentication Flow
 
@@ -143,8 +154,9 @@ CSS custom properties for theming:
 
 ## Important Notes
 
-- **Svelte 5 required**: Uses runes ($props, $state, $effect)
-- **WalletConnect**: Requires `wcConfig` with project ID from WalletConnect Cloud
+- **Svelte 5 required**: Uses runes ($props, $state, $effect) and context API
+- **Scoping**: `<Web3Wallet scope="voi">` creates isolated state per chain; omitting `scope` uses `'default'` which shares module-level singletons
+- **WalletConnect**: Requires `wcConfig` with project ID from WalletConnect Cloud. The underlying `UniversalProvider` is a shared singleton; concurrent WC sessions across scopes use topic-based session isolation.
 - **ESLint 9**: Uses flat config format (`eslint.config.js`)
 - **Tailwind 3.4**: CSS-first theming, will upgrade to v4 later
 - **Legacy API**: v1.x API still exported for migration (deprecated)

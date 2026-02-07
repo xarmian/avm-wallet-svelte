@@ -2,11 +2,12 @@
 	import type { WalletId } from '../adapters/types.js';
 	import type { WalletInfo } from '../adapters/registry.js';
 
-	import { registry } from '../adapters/index.js';
-	import { walletStore } from '../state/wallet-store.svelte.js';
-	import { providerStore } from '../state/provider-store.svelte.js';
+	import { getContext } from 'svelte';
+	import { SCOPE_CONTEXT_KEY, type WalletScope } from '../state/scope.svelte.js';
 
 	import WalletProviderRow from './WalletProviderRow.svelte';
+
+	const { walletStore, providerStore, registry } = getContext<WalletScope>(SCOPE_CONTEXT_KEY);
 
 	interface Props {
 		autoSignIn?: boolean;

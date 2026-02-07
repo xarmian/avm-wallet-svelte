@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Web3Wallet, walletStore, uiState, providerStore, registry } from '$lib/index.js';
+	import { Web3Wallet, walletStore, uiState, providerStore, registry, getScope } from '$lib/index.js';
 	import algosdk from 'algosdk';
 	import { PUBLIC_WALLETCONNECT_PROJECT_ID as PROJECT_ID } from '$env/static/public';
 	import { onMount } from 'svelte';
@@ -385,7 +385,8 @@
 			<div class="demo-card demo-card--wide">
 				<h2>Inline Usage</h2>
 				<p class="demo-description">
-					Multiple instances can coexist. They share the same wallet store state.
+					Multiple instances without a <code>scope</code> prop share the default scope (same wallet
+					store state).
 				</p>
 
 				<div class="inline-demo">
@@ -396,6 +397,51 @@
 					<div class="inline-item">
 						<span>Secondary:</span>
 						<Web3Wallet id="inline-secondary" {algodClient} {wcConfig} displayMode="dropdown" />
+					</div>
+				</div>
+			</div>
+
+			<div class="demo-card demo-card--wide">
+				<h2>Scoped Multi-Chain</h2>
+				<p class="demo-description">
+					Each <code>Web3Wallet</code> with a different <code>scope</code> prop gets its own isolated
+					wallet store, provider, and registry. Connecting an account in one scope does not affect the
+					other. In production you would point each scope at a different chain's algod client.
+				</p>
+
+				<div class="inline-demo">
+					<div class="inline-item">
+						<span>Scope "voi":</span>
+						<Web3Wallet
+							scope="voi"
+							id="scope-voi"
+							{algodClient}
+							{allowWatchAccounts}
+							{wcConfig}
+							displayMode="dropdown"
+						/>
+					</div>
+					<div class="inline-item">
+						<span>Scope "test":</span>
+						<Web3Wallet
+							scope="test"
+							id="scope-test"
+							{algodClient}
+							{allowWatchAccounts}
+							{wcConfig}
+							displayMode="dropdown"
+						/>
+					</div>
+				</div>
+
+				<div class="debug-section" style="margin-top: 0.75rem;">
+					<div class="debug-item">
+						<span class="debug-label">Voi scope accounts:</span>
+						<span class="debug-value">{getScope('voi')?.walletStore?.accounts?.length ?? 0}</span>
+					</div>
+					<div class="debug-item">
+						<span class="debug-label">Test scope accounts:</span>
+						<span class="debug-value">{getScope('test')?.walletStore?.accounts?.length ?? 0}</span>
 					</div>
 				</div>
 			</div>

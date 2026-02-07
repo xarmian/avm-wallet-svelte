@@ -4,11 +4,16 @@
 	import type { WalletId, WalletConnectConfig } from '../adapters/types.js';
 	import type { ConnectedAccount } from '../state/types.js';
 
-	import { onMount, onDestroy } from 'svelte';
-	import { walletStore } from '../state/wallet-store.svelte.js';
-	import { uiStore, uiState } from '../state/ui-store.svelte.js';
-	import { providerStore } from '../state/provider-store.svelte.js';
-	import { registry, onWalletConnectModal } from '../adapters/index.js';
+	import { onMount, onDestroy, setContext } from 'svelte';
+	import { onWalletConnectModal } from '../adapters/walletconnect.js';
+	import {
+		createWalletScope,
+		getScope,
+		registerScope,
+		unregisterScope,
+		SCOPE_CONTEXT_KEY,
+		type WalletScope
+	} from '../state/scope.svelte.js';
 
 	import AccountSelector from './AccountSelector.svelte';
 	import AddAccountView from './AddAccountView.svelte';
@@ -33,6 +38,8 @@
 		class?: string;
 		/** Instance ID for targeted external control via uiStore.openWalletList(id) */
 		id?: string;
+		/** Scope identifier for multi-chain support. Omit or 'default' for single-chain backward compat. */
+		scope?: string;
 
 		/** Auto sign-in after connecting */
 		autoSignIn?: boolean;
@@ -62,23 +69,36 @@
 		wcConfig,
 		class: className = '',
 		id,
+		scope,
 		autoSignIn = false,
 		showSignInButton = false,
 		showSignInStatus = true,
 		trigger
 	}: Props = $props();
 
+	// Resolve scope (intentionally captured once at init -- scope identity must not change after mount)
+	// svelte-ignore state_referenced_locally
+	const scopeId = scope ?? 'default';
+	const walletScope: WalletScope = getScope(scopeId) ?? createWalletScope(scopeId);
+	registerScope(walletScope);
+
+	// Destructure scope for local use
+	const { walletStore, providerStore, uiStore, uiState, registry } = walletScope;
+
+	// Set context for child components
+	setContext(SCOPE_CONTEXT_KEY, walletScope);
+
 	// Local state
 	let containerRef = $state<HTMLElement | null>(null);
 	let initError = $state<string | null>(null);
 	let wcUnsubscribe: (() => void) | null = null;
 
-	// UI state - uses global uiStore for external control
+	// UI state - uses scoped uiStore for external control
 	let showList = $state(false);
 	let currentView = $state<'selector' | 'add-account'>('selector');
 	let openedViaGlobal = $state(false); // Track if opened via uiStore
 
-	// Sync with global uiState for external control (e.g., uiStore.openWalletList(id))
+	// Sync with scoped uiState for external control (e.g., uiStore.openWalletList(id))
 	// Only react if this instance is specifically targeted by id
 	$effect(() => {
 		const globalShowList = uiState.showWalletList;
@@ -131,14 +151,14 @@
 				wcConfig
 			);
 
-			// Set up WalletConnect modal handler
+			// Set up WalletConnect modal handler (scoped)
 			wcUnsubscribe = onWalletConnectModal((event) => {
 				if (event.type === 'show') {
 					uiStore.showWalletConnectModal(event.uri, event.walletName);
 				} else {
 					uiStore.closeWalletConnectModal();
 				}
-			});
+			}, scopeId);
 
 			// Try to reconnect existing sessions
 			const restored = await registry.reconnectAll();
@@ -166,6 +186,7 @@
 			document.removeEventListener('click', handleClickOutside);
 		}
 		wcUnsubscribe?.();
+		unregisterScope(scopeId);
 	});
 
 	function handleClickOutside(event: MouseEvent) {
@@ -279,6 +300,7 @@
 			</div>
 		{:else}
 			<!-- Modal mode -->
+			<!-- svelte-ignore a11y_interactive_supports_focus -->
 			<div
 				class="avm-wallet__backdrop"
 				role="dialog"
@@ -287,6 +309,7 @@
 				onclick={() => closeList()}
 				onkeydown={(e) => e.key === 'Escape' && closeList()}
 			>
+				<!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
 				<div class="avm-wallet__modal" onclick={(e) => e.stopPropagation()} role="document">
 					{#if currentView === 'selector'}
 						<header class="avm-wallet__modal-header">

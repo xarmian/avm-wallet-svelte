@@ -1,6 +1,9 @@
 <script lang="ts">
 	import QRCode from 'qrcode';
-	import { uiStore } from '../state/ui-store.svelte.js';
+	import { getContext } from 'svelte';
+	import { SCOPE_CONTEXT_KEY, type WalletScope } from '../state/scope.svelte.js';
+
+	const { uiStore } = getContext<WalletScope>(SCOPE_CONTEXT_KEY);
 
 	const wcModal = $derived(uiStore.wcModal);
 
