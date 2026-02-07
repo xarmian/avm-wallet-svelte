@@ -1,5 +1,12 @@
 <script lang="ts">
-	import { Web3Wallet, walletStore, uiState, providerStore, registry, getScope } from '$lib/index.js';
+	import {
+		Web3Wallet,
+		walletStore,
+		uiState,
+		providerStore,
+		registry,
+		getScope
+	} from '$lib/index.js';
 	import algosdk from 'algosdk';
 	import { PUBLIC_WALLETCONNECT_PROJECT_ID as PROJECT_ID } from '$env/static/public';
 	import { onMount } from 'svelte';
@@ -385,8 +392,8 @@
 			<div class="demo-card demo-card--wide">
 				<h2>Inline Usage</h2>
 				<p class="demo-description">
-					Multiple instances without a <code>scope</code> prop share the default scope (same wallet
-					store state).
+					Multiple instances without a <code>scope</code> prop share the default scope (same wallet store
+					state).
 				</p>
 
 				<div class="inline-demo">

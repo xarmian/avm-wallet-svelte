@@ -354,11 +354,11 @@ export class WalletConnectAdapter implements WalletAdapter {
 		// Check if our session topic still exists in the client's session store
 		try {
 			const allSessions = this.provider.client?.session?.getAll() ?? [];
-			const found = allSessions.some(
-				(s: { topic: string }) => s.topic === this.session!.topic
-			);
+			const found = allSessions.some((s: { topic: string }) => s.topic === this.session!.topic);
 			if (!found) {
-				console.log(`[${this.id}:${this.scopeId}] Session not found in client store during validation`);
+				console.log(
+					`[${this.id}:${this.scopeId}] Session not found in client store during validation`
+				);
 				this.session = null;
 				this._accounts = [];
 				this.clearPersistedSession();

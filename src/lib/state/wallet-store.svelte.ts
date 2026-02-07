@@ -16,8 +16,7 @@ import type {
  */
 export function createWalletStore(scopeId = 'default') {
 	const STORAGE_KEY = scopeId === 'default' ? 'avm-wallet-state' : `avm-wallet-state-${scopeId}`;
-	const TOKEN_PREFIX =
-		scopeId === 'default' ? 'avm-wallet-token-' : `avm-wallet-token-${scopeId}-`;
+	const TOKEN_PREFIX = scopeId === 'default' ? 'avm-wallet-token-' : `avm-wallet-token-${scopeId}-`;
 
 	/**
 	 * Load persisted state from localStorage.

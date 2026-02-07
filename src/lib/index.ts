@@ -30,7 +30,13 @@ export { createProviderStore } from './state/index.js';
 export { createUIStore } from './state/index.js';
 
 // Scope management
-export { createWalletScope, getScope, registerScope, unregisterScope, SCOPE_CONTEXT_KEY } from './state/index.js';
+export {
+	createWalletScope,
+	getScope,
+	registerScope,
+	unregisterScope,
+	SCOPE_CONTEXT_KEY
+} from './state/index.js';
 export type { WalletScope } from './state/index.js';
 
 // State types

@@ -3,7 +3,11 @@ import {
 	createProviderStore,
 	providerStore as defaultProviderStore
 } from './provider-store.svelte.js';
-import { createUIStore, uiStore as defaultUiStore, uiState as defaultUiState } from './ui-store.svelte.js';
+import {
+	createUIStore,
+	uiStore as defaultUiStore,
+	uiState as defaultUiState
+} from './ui-store.svelte.js';
 import { WalletRegistry, registry as defaultRegistry } from '../adapters/registry.js';
 
 /**
