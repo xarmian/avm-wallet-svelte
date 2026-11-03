@@ -147,7 +147,9 @@ for (const [name, call, sending] of [
 			const groups = [[txn()], [txn()]];
 			const originalBytes = groups.map((group) => group.map(algosdk.encodeUnsignedTransaction));
 			expect(await call(groups, captured)).toBe(sending ? true : signed);
-			expect(groups.map((group) => group.map(algosdk.encodeUnsignedTransaction))).toEqual(originalBytes);
+			expect(groups.map((group) => group.map(algosdk.encodeUnsignedTransaction))).toEqual(
+				originalBytes
+			);
 			onlyProvider('PeraWallet', sending, groups);
 		});
 
