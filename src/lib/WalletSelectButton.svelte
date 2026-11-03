@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Wallet, WalletConnectionResult } from './wallets.js';
   import { wallets } from './wallets.js';
-  import { selectedWallet as selectedWalletStore, connectedWallets as connectedWalletStore, showWalletList, authModalStore, envoiStore } from './store.js';
+  import { selectedWallet as selectedWalletStore, connectedWallets as connectedWalletStore, showWalletList, authModalStore, envoiStore, pickWallet } from './store.js';
   import AuthModal from './AuthModal.svelte';
   import { onDestroy } from 'svelte';
   import { logoutWallet } from './utils.js';
@@ -85,7 +85,7 @@
   };
 
   const selectDefaultWallet = async (addr: string) => {
-    selectedWalletStore.set({ app: walletName, address: addr });
+    pickWallet({ app: walletName, address: addr });
     if (modalType != 'modal') {
       showWalletList.set(false);
     }

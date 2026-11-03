@@ -5,10 +5,20 @@ import type { Algodv2, Indexer } from 'algosdk';
 import Cookies from 'js-cookie';
 
 let onAddHandler: (wallets: WalletConnectionResult[]) => void = () => { };
+let onSelectHandler: (wallet: WalletConnectionResult) => void = () => { };
 let onAuthHandler: (wallet: WalletConnectionResult) => void = () => { };
 
 export function setOnAddHandler(newHandler: (wallets: WalletConnectionResult[]) => void) {
   onAddHandler = newHandler;
+}
+
+export function setOnSelectHandler(newHandler: (wallet: WalletConnectionResult) => void) {
+  onSelectHandler = newHandler;
+}
+
+export function pickWallet(wallet: WalletConnectionResult) {
+  selectedWallet.set(wallet);
+  onSelectHandler(wallet);
 }
 
 export function setOnAuthHandler(newHandler: (wallet: WalletConnectionResult) => void) {
@@ -18,7 +28,7 @@ export function setOnAuthHandler(newHandler: (wallet: WalletConnectionResult) =>
 interface AVMWalletStore extends Writable<WalletConnectionResult[]> {
   remove: (app: string, walletAddress?: string) => void;
   reset: () => void;
-  add: (wallets: WalletConnectionResult[]) => void;
+  add: (wallets: WalletConnectionResult[], opts?: { select?: boolean }) => void;
 }
 
 interface SelectedWalletStore extends Writable<WalletConnectionResult | null> {
@@ -79,7 +89,10 @@ function createWalletStore(): AVMWalletStore {
     },
     set: (newWallets: WalletConnectionResult[]) => {
       set(newWallets);
-      selectedWallet.set(newWallets[0]);
+      const selected = get(selectedWallet);
+      if (!newWallets.some(w => w.address === selected?.address && w.app === selected?.app)) {
+        selectedWallet.set(newWallets[0]);
+      }
       localStorage
         .setItem(key, JSON.stringify(newWallets));
     },
@@ -105,14 +118,23 @@ function createWalletStore(): AVMWalletStore {
         Cookies.remove('avm-wallet-token-' + wallet.address);
       });
     },
-    add: (wallets: WalletConnectionResult[]) => {
+    add: (wallets: WalletConnectionResult[], opts?: { select?: boolean }) => {
       const storedValue = get(connectedWallets);
 
       // newWallets = combine storedValue and wallets, but remove any duplicates
       const newWallets = storedValue.concat(wallets)
         .filter((wallet, index, self) => self.findIndex(w => w.address === wallet.address && w.app === wallet.app) === index);
       set(newWallets);
-      selectedWallet.set(wallets[0]);
+      if (opts?.select !== false) {
+        selectedWallet.set(wallets[0]);
+        onSelectHandler(wallets[0]);
+      }
+      else {
+        const selected = get(selectedWallet);
+        if (!newWallets.some(w => w.address === selected?.address && w.app === selected?.app)) {
+          selectedWallet.set(wallets[0]);
+        }
+      }
       localStorage
         .setItem(key, JSON.stringify(newWallets));
 

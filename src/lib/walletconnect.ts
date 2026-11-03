@@ -66,7 +66,7 @@ async function initialize() {
                             return { address, app: sessionOwner };
                         });
 
-                        connectedWallets.add(wallets);
+                        connectedWallets.add(wallets, { select: false });
                         console.log('Restored valid WalletConnect session for', sessionOwner);
                     } else {
                         console.log('Session found but no owner - will be claimed on next connect');
