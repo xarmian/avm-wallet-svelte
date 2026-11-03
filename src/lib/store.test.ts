@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { get } from 'svelte/store';
-import { connectedWallets, selectedWallet, setOnSelectHandler, pickWallet } from './store.js';
+import {
+	connectedWallets,
+	selectedWallet,
+	setOnAddHandler,
+	setOnSelectHandler,
+	pickWallet
+} from './store.js';
 
 const A = { address: 'AAAA', app: 'WalletConnect' };
 const B = { address: 'BBBB', app: 'WalletConnect' };
@@ -62,6 +68,18 @@ describe('select handler (pick event)', () => {
 		connectedWallets.add([A, B]);
 		expect(handler).toHaveBeenCalledTimes(1);
 		expect(handler).toHaveBeenCalledWith(A);
+	});
+
+	it('a throwing handler cannot stop add() from persisting or calling the add handler', () => {
+		const onAdd = vi.fn();
+		setOnAddHandler(onAdd);
+		setOnSelectHandler(() => {
+			throw new Error('consumer failed');
+		});
+		expect(() => connectedWallets.add([A, B])).toThrow('consumer failed');
+		expect(JSON.parse(localStorage.getItem('avmWallets') ?? '[]')).toEqual([A, B]);
+		expect(onAdd).toHaveBeenCalledWith([A, B]);
+		setOnAddHandler(() => {});
 	});
 
 	it('does not fire for a restore', () => {

@@ -127,7 +127,6 @@ function createWalletStore(): AVMWalletStore {
       set(newWallets);
       if (opts?.select !== false) {
         selectedWallet.set(wallets[0]);
-        onSelectHandler(wallets[0]);
       }
       else {
         const selected = get(selectedWallet);
@@ -139,6 +138,11 @@ function createWalletStore(): AVMWalletStore {
         .setItem(key, JSON.stringify(newWallets));
 
       onAddHandler(wallets);
+
+      // Last, so a throwing consumer handler cannot abort the persistence or onAddHandler above.
+      if (opts?.select !== false) {
+        onSelectHandler(wallets[0]);
+      }
     },
     update: (updater: (wallets: WalletConnectionResult[]) => WalletConnectionResult[]) => {
       const storedValue = get(connectedWallets);
