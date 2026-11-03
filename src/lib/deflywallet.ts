@@ -7,6 +7,11 @@ export const WalletName = "DeflyWallet";
 
 const wallet = new WalletClass();
 
+// Inspect the existing session without starting the prompting connection flow.
+export async function getSessionAccounts(): Promise<string[]> {
+    return await wallet.reconnectSession();
+}
+
 export async function connect(): Promise<WalletConnectionResult[] | null> {
     try {
         let accts = await wallet.reconnectSession();

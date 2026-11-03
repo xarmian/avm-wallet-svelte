@@ -175,6 +175,17 @@ export async function hasActiveSession(): Promise<boolean> {
     return !!(algorandNamespace && hasRequiredMethods && hasRequiredChain);
 }
 
+// Use the same initialization as signing so persisted ownership is restored first.
+export async function getSessionOwner(): Promise<string | null> {
+    await initialize();
+    return sessionOwner;
+}
+
+export async function getSessionAccounts(): Promise<string[]> {
+    await initialize();
+    return session?.namespaces['algorand']?.accounts?.map(account => account.split(":")[2]) ?? [];
+}
+
 export async function connect(walletName?: string): Promise<WalletConnectionResult[] | null> {
     // Set the intended wallet name if provided, otherwise use the default
     if (walletName) {

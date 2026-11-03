@@ -4,6 +4,7 @@
    found here: https://developer.algorand.org/tutorials/stateless-session-management-with-the-pera-wallet/
 */
 
+import { SignerDisconnectedError, SignerTransactionMismatchError } from "./signerErrors.js";
 import * as peraConnect from "./perawallet.js";
 import * as deflyConnect from "./deflywallet.js";
 import * as kibisisConnect from "./kibisiswallet.js";
@@ -37,13 +38,44 @@ import * as ed from '@noble/ed25519';
 import { sha512 } from '@noble/hashes/sha512';
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 
+export type TransactionSigner = Readonly<{ address: string; app: string }>;
+export const SIGNER_API_VERSION = 1 as const;
+
+export { SignerDisconnectedError, SignerTransactionMismatchError } from "./signerErrors.js";
+
+async function requireSessionAccount(
+  signer: TransactionSigner,
+  getAccounts: () => Promise<string[]>
+): Promise<void> {
+  let accounts: string[];
+  try {
+    accounts = await getAccounts();
+  } catch {
+    throw new SignerDisconnectedError(signer);
+  }
+  if (!accounts.includes(signer.address)) throw new SignerDisconnectedError(signer);
+}
+
+async function requireWalletConnectSession(signer: TransactionSigner): Promise<void> {
+  try {
+    if (
+      await WalletConnect.hasActiveSession() &&
+      await WalletConnect.getSessionOwner() === signer.app &&
+      (await WalletConnect.getSessionAccounts()).includes(signer.address)
+    ) return;
+  } catch {
+    // A session that cannot be inspected cannot establish ownership.
+  }
+  throw new SignerDisconnectedError(signer);
+}
+
 export interface Wallet {
   name: string;
   icon: string;
   connect: () => Promise<WalletConnectionResult | null>;
   disconnect?: (walletAddress?: string) => void;
-  signTxns?: (txns: algosdk.Transaction[][]) => Promise<Uint8Array[]>;
-  signAndSendTxns?: (txns: algosdk.Transaction[][], algodClient?: algosdk.Algodv2) => Promise<boolean>;
+  signTxns?: (txns: algosdk.Transaction[][], signer: TransactionSigner) => Promise<Uint8Array[]>;
+  signAndSendTxns?: (txns: algosdk.Transaction[][], signer: TransactionSigner, algodClient?: algosdk.Algodv2) => Promise<boolean>;
   authenticate?: (wallet: string, algodClient?: algosdk.Algodv2) => Promise<void>;
 }
 
@@ -116,11 +148,12 @@ export const wallets: Wallet[] = [
     disconnect: () => {
       peraConnect.disconnect();
     },
-    signTxns: async (txns: algosdk.Transaction[][]) => {
-      await peraConnect.connect();
+    signTxns: async (txns: algosdk.Transaction[][], signer: TransactionSigner) => {
+      await requireSessionAccount(signer, peraConnect.getSessionAccounts);
       return await peraConnect.signTransactions(txns);
     },
-    signAndSendTxns: async (txns: algosdk.Transaction[][], algodClient?: algosdk.Algodv2) => {
+    signAndSendTxns: async (txns: algosdk.Transaction[][], signer: TransactionSigner, algodClient?: algosdk.Algodv2) => {
+      await requireSessionAccount(signer, peraConnect.getSessionAccounts);
       const providerStoreValue = get(ProviderStore);
       if (!algodClient) {
         algodClient = providerStoreValue.algodClient;
@@ -129,7 +162,6 @@ export const wallets: Wallet[] = [
       if (!algodClient) {
         throw new Error("Algod client not available");
       }
-      await peraConnect.connect();
       return await peraConnect.signAndSendTransactions(algodClient, txns);
     },
     authenticate: async (wallet: string, algodClient?: algosdk.Algodv2) => {
@@ -180,11 +212,12 @@ export const wallets: Wallet[] = [
     disconnect: () => {
       deflyConnect.disconnect();
     },
-    signTxns: async (txns: algosdk.Transaction[][]) => {
-      await deflyConnect.connect();
+    signTxns: async (txns: algosdk.Transaction[][], signer: TransactionSigner) => {
+      await requireSessionAccount(signer, deflyConnect.getSessionAccounts);
       return await deflyConnect.signTransactions(txns);
     },
-    signAndSendTxns: async (txns: algosdk.Transaction[][], algodClient?: algosdk.Algodv2) => {
+    signAndSendTxns: async (txns: algosdk.Transaction[][], signer: TransactionSigner, algodClient?: algosdk.Algodv2) => {
+      await requireSessionAccount(signer, deflyConnect.getSessionAccounts);
       const providerStoreValue = get(ProviderStore);
       if (!algodClient) {
         algodClient = providerStoreValue.algodClient;
@@ -193,7 +226,6 @@ export const wallets: Wallet[] = [
       if (!algodClient) {
         throw new Error("Algod client not available");
       }
-      await deflyConnect.connect();
       return await deflyConnect.signAndSendTransactions(algodClient, txns);
     },
     authenticate: async (wallet: string, algodClient?: algosdk.Algodv2) => {
@@ -241,7 +273,7 @@ export const wallets: Wallet[] = [
       await kibisisConnect.connect();
       return await kibisisConnect.signTransactions(txns);
     },
-    signAndSendTxns: async (txns: algosdk.Transaction[][], algodClient?: algosdk.Algodv2) => {
+    signAndSendTxns: async (txns: algosdk.Transaction[][], _signer: TransactionSigner, algodClient?: algosdk.Algodv2) => {
       const providerStoreValue = get(ProviderStore);
       if (!algodClient) {
         algodClient = providerStoreValue.algodClient;
@@ -313,7 +345,7 @@ export const wallets: Wallet[] = [
       await LuteConnect.initWallet();
       return await LuteConnect.signTransactions(txns);
     },
-    signAndSendTxns: async (txns: algosdk.Transaction[][], algodClient?: algosdk.Algodv2) => {
+    signAndSendTxns: async (txns: algosdk.Transaction[][], _signer: TransactionSigner, algodClient?: algosdk.Algodv2) => {
       await LuteConnect.initWallet();
 
       const providerStoreValue = get(ProviderStore);
@@ -364,14 +396,12 @@ export const wallets: Wallet[] = [
       await WalletConnect.disconnect();
       connectedWallets.remove(Wallets.BIATEC);
     },
-    signTxns: async (txns: algosdk.Transaction[][]) => {
-      // Only connect if there's no active session
-      if (!await WalletConnect.hasActiveSession()) {
-        await WalletConnect.connect(Wallets.BIATEC);
-      }
+    signTxns: async (txns: algosdk.Transaction[][], signer: TransactionSigner) => {
+      await requireWalletConnectSession(signer);
       return await WalletConnect.signTransactions(txns);
     },
-    signAndSendTxns: async (txns: algosdk.Transaction[][], algodClient?: algosdk.Algodv2) => {
+    signAndSendTxns: async (txns: algosdk.Transaction[][], signer: TransactionSigner, algodClient?: algosdk.Algodv2) => {
+      await requireWalletConnectSession(signer);
       const providerStoreValue = get(ProviderStore);
       if (!algodClient) {
         algodClient = providerStoreValue.algodClient;
@@ -379,10 +409,6 @@ export const wallets: Wallet[] = [
 
       if (!algodClient) {
         throw new Error("Algod client not available");
-      }
-      // Only connect if there's no active session
-      if (!await WalletConnect.hasActiveSession()) {
-        await WalletConnect.connect(Wallets.BIATEC);
       }
       return await WalletConnect.signAndSendTransactions(algodClient, txns);
     },
@@ -428,14 +454,12 @@ export const wallets: Wallet[] = [
       await WalletConnect.disconnect();
       connectedWallets.remove(Wallets.VOIWALLET);
     },
-    signTxns: async (txns: algosdk.Transaction[][]) => {
-      // Only connect if there's no active session
-      if (!await WalletConnect.hasActiveSession()) {
-        await WalletConnect.connect(Wallets.VOIWALLET);
-      }
+    signTxns: async (txns: algosdk.Transaction[][], signer: TransactionSigner) => {
+      await requireWalletConnectSession(signer);
       return await WalletConnect.signTransactions(txns);
     },
-    signAndSendTxns: async (txns: algosdk.Transaction[][], algodClient?: algosdk.Algodv2) => {
+    signAndSendTxns: async (txns: algosdk.Transaction[][], signer: TransactionSigner, algodClient?: algosdk.Algodv2) => {
+      await requireWalletConnectSession(signer);
       const providerStoreValue = get(ProviderStore);
       if (!algodClient) {
         algodClient = providerStoreValue.algodClient;
@@ -443,10 +467,6 @@ export const wallets: Wallet[] = [
 
       if (!algodClient) {
         throw new Error("Algod client not available");
-      }
-      // Only connect if there's no active session
-      if (!await WalletConnect.hasActiveSession()) {
-        await WalletConnect.connect(Wallets.VOIWALLET);
       }
       return await WalletConnect.signAndSendTransactions(algodClient, txns);
     },
@@ -492,14 +512,12 @@ export const wallets: Wallet[] = [
       await WalletConnect.disconnect();
       connectedWallets.remove(Wallets.WALLETCONNECT);
     },
-    signTxns: async (txns: algosdk.Transaction[][]) => {
-      // Only connect if there's no active session
-      if (!await WalletConnect.hasActiveSession()) {
-        await WalletConnect.connect();
-      }
+    signTxns: async (txns: algosdk.Transaction[][], signer: TransactionSigner) => {
+      await requireWalletConnectSession(signer);
       return await WalletConnect.signTransactions(txns);
     },
-    signAndSendTxns: async (txns: algosdk.Transaction[][], algodClient?: algosdk.Algodv2) => {
+    signAndSendTxns: async (txns: algosdk.Transaction[][], signer: TransactionSigner, algodClient?: algosdk.Algodv2) => {
+      await requireWalletConnectSession(signer);
       const providerStoreValue = get(ProviderStore);
       if (!algodClient) {
         algodClient = providerStoreValue.algodClient;
@@ -507,10 +525,6 @@ export const wallets: Wallet[] = [
 
       if (!algodClient) {
         throw new Error("Algod client not available");
-      }
-      // Only connect if there's no active session
-      if (!await WalletConnect.hasActiveSession()) {
-        await WalletConnect.connect();
       }
       return await WalletConnect.signAndSendTransactions(algodClient, txns);
     },
@@ -670,50 +684,53 @@ export function getSelectedWalletToken(): string | null {
   return wallet?.token || null;
 }
 
-export function signAndSendTransactions(txnGroups: algosdk.Transaction[][], algodClient?: algosdk.Algodv2): Promise<boolean> {
-  const wallet = get(selectedWallet);
-
-  if (!wallet) {
-    throw new Error("No wallet selected");
+function resolveSigner(txnGroups: algosdk.Transaction[][], signer: TransactionSigner) {
+  const address = signer?.address;
+  const app = signer?.app;
+  if (typeof address !== "string" || !address || typeof app !== "string" || !app || !algosdk.isValidAddress(address)) {
+    throw new TypeError("An explicit signer { address, app } is required.");
   }
-
-  const selected = wallets.find(w => w.name === wallet.app);
-
-  if (!selected) {
-    throw new Error("Wallet not found");
+  const snapshot: TransactionSigner = { address, app };
+  if (!txnGroups.length || txnGroups.some(group => !group.length)) {
+    throw new TypeError("At least one transaction is required.");
   }
-
-  if (!algodClient) {
-    algodClient = get(ProviderStore).algodClient;
+  const connected = get(connectedWallets).find(w => w.address === address && w.app === app);
+  if (!connected) throw new SignerDisconnectedError(snapshot);
+  if (connected.app === Wallets.WATCH || connected.watch) {
+    throw new Error("Watched accounts do not support signing transactions");
   }
-
-  if (selected.signAndSendTxns) {
-    return selected.signAndSendTxns(txnGroups, algodClient);
-  }
-  else {
-    throw new Error("Wallet does not support signing and sending transactions");
-  }
+  txnGroups.forEach((group, groupIndex) => {
+    group.forEach((txn, transactionIndex) => {
+      const sender = algosdk.encodeAddress(txn.from.publicKey);
+      if (sender !== address) throw new SignerTransactionMismatchError(sender, snapshot, groupIndex, transactionIndex);
+    });
+  });
+  const adapter = wallets.find(w => w.name === app);
+  if (!adapter) throw new Error("Wallet not found");
+  return { signer: snapshot, adapter };
 }
 
-export function signTransactions(txnGroups: algosdk.Transaction[][]): Promise<Uint8Array[]> {
-  const wallet = get(selectedWallet);
-
-  if (!wallet) {
-    throw new Error("No wallet selected");
+export async function signAndSendTransactions(
+  txnGroups: algosdk.Transaction[][],
+  signer: TransactionSigner,
+  algodClient?: algosdk.Algodv2
+): Promise<boolean> {
+  const resolved = resolveSigner(txnGroups, signer);
+  if (!resolved.adapter.signAndSendTxns) {
+    throw new Error("Wallet does not support signing and sending transactions");
   }
+  return resolved.adapter.signAndSendTxns(txnGroups, resolved.signer, algodClient ?? get(ProviderStore).algodClient);
+}
 
-  const selected = wallets.find(w => w.name === wallet.app);
-
-  if (!selected) {
-    throw new Error("Wallet not found");
-  }
-
-  if (selected.signTxns) {
-    return selected.signTxns(txnGroups);
-  }
-  else {
+export async function signTransactions(
+  txnGroups: algosdk.Transaction[][],
+  signer: TransactionSigner
+): Promise<Uint8Array[]> {
+  const resolved = resolveSigner(txnGroups, signer);
+  if (!resolved.adapter.signTxns) {
     throw new Error("Wallet does not support signing transactions");
   }
+  return resolved.adapter.signTxns(txnGroups, resolved.signer);
 }
 
 /*export async function verifySignature(signedTxn: Uint8Array, txn: algosdk.Transaction, publicKey: string): Promise<boolean> {

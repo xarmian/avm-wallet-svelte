@@ -145,7 +145,9 @@ for (const [name, call, sending] of [
 			const captured = { ...get(selectedWallet)! };
 			pickWallet(B);
 			const groups = [[txn()], [txn()]];
+			const originalBytes = groups.map((group) => group.map(algosdk.encodeUnsignedTransaction));
 			expect(await call(groups, captured)).toBe(sending ? true : signed);
+			expect(groups.map((group) => group.map(algosdk.encodeUnsignedTransaction))).toEqual(originalBytes);
 			onlyProvider('PeraWallet', sending, groups);
 		});
 
@@ -175,12 +177,15 @@ for (const [name, call, sending] of [
 			}
 		);
 
-		it.each([undefined, client])('L4 rejects omitted or legacy client signer %s', async (signer) => {
-			await expect(call([[txn()]], signer)).rejects.toEqual(
-				new TypeError('An explicit signer { address, app } is required.')
-			);
-			noProviderCalls();
-		});
+		it.each([undefined, client])(
+			'L4 rejects omitted or legacy client signer %s',
+			async (signer) => {
+				await expect(call([[txn()]], signer)).rejects.toEqual(
+					new TypeError('An explicit signer { address, app } is required.')
+				);
+				noProviderCalls();
+			}
+		);
 
 		it.each([[[txn()], [txn(), txn(B.address)]], [[txn(), txn(B.address)]]])(
 			'L5 rejects every mismatched sender before any provider',
@@ -227,12 +232,15 @@ for (const [name, call, sending] of [
 			noProviderCalls();
 		});
 
-		it.each([[], [[]], [[txn()], []]])('L7 rejects empty transaction groups %s', async (...groups) => {
-			await expect(call(groups, A)).rejects.toEqual(
-				new TypeError('At least one transaction is required.')
-			);
-			noProviderCalls();
-		});
+		it.each([[], [[]], [[txn()], []]])(
+			'L7 rejects empty transaction groups %s',
+			async (...groups) => {
+				await expect(call(groups, A)).rejects.toEqual(
+					new TypeError('At least one transaction is required.')
+				);
+				noProviderCalls();
+			}
+		);
 
 		it('L7 rejects invalid transaction objects before provider dispatch', async () => {
 			await expect(call([[{} as algosdk.Transaction]], A)).rejects.toBeInstanceOf(TypeError);
@@ -334,7 +342,10 @@ for (const [name, call, sending] of [
 		for (const app of ['LuteWallet', 'Kibisis'] as const) {
 			it(`L10 ${app} routes only the exact captured app`, async () => {
 				const signer = { ...A, app };
-				connectedWallets.add([signer, { ...A, app: app === 'Kibisis' ? 'LuteWallet' : 'Kibisis' }], { select: false });
+				connectedWallets.add(
+					[signer, { ...A, app: app === 'Kibisis' ? 'LuteWallet' : 'Kibisis' }],
+					{ select: false }
+				);
 				const groups = [[txn()]];
 				await call(groups, signer);
 				onlyProvider(app, sending, groups);
@@ -351,7 +362,9 @@ for (const [name, call, sending] of [
 				const signer = { ...A, app };
 				connectedWallets.add([signer], { select: false });
 				const refusal = new Error(`${app} refused`);
-				providers[app][sending ? 'signAndSendTransactions' : 'signTransactions'].mockRejectedValueOnce(refusal);
+				providers[app][
+					sending ? 'signAndSendTransactions' : 'signTransactions'
+				].mockRejectedValueOnce(refusal);
 				const groups = [[txn()]];
 				await expect(call(groups, signer)).rejects.toBe(refusal);
 				onlyProvider(app, sending, groups);

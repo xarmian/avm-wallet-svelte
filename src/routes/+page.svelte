@@ -4,7 +4,6 @@
     import { Buffer } from 'buffer';
     import { wallets, verifySignature, getSelectedWalletToken, signAndSendTransactions } from '../lib/wallets.ts';
     import { selectedWallet, setOnAddHandler, setOnAuthHandler } from '../lib/store.ts';
-    import { get } from 'svelte/store';
     import type { Transaction } from 'algosdk';
     import { PUBLIC_WALLETCONNECT_PROJECT_ID as PROJECT_ID } from '$env/static/public';
     import { onDestroy, onMount } from 'svelte';
@@ -64,6 +63,11 @@
     });
 
     const signTxn = async () => {
+        const wallet = $selectedWallet;
+        if (!wallet) {
+            throw new Error('No wallet selected');
+        }
+        const signer = { address: wallet.address, app: wallet.app };
         if (!algodClient) {
             throw new Error('AlgodClient not found');
         }
@@ -71,8 +75,8 @@
         const params = await algodClient.getTransactionParams().do();
 
         const txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
-            from: get(selectedWallet)?.address??'',
-            to: get(selectedWallet)?.address??'',
+            from: signer.address,
+            to: signer.address,
             amount: 1000, // amount in microAlgos
             suggestedParams: params
         });
@@ -84,7 +88,7 @@
         //algosdk.assignGroupID(allTxns);
 
         try {
-            const status = await signAndSendTransactions([allTxns]);
+            const status = await signAndSendTransactions([allTxns], signer);
             console.log(status);
         }
         catch (e: any) {
