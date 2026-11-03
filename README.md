@@ -13,7 +13,7 @@ The component supports:
 * Fast wallet switching, detectable through a svelte store subscription (see below)
 * Multiple wallets and accounts connected simultaneously
 * Authentication token creation and storage
-* Universal signing API to sign and transmit transactions using the current selected wallet
+* Universal signing API to sign and transmit transactions using an explicitly captured account and wallet app
 
 Current wallets supported:
 * Pera Wallet - https://perawallet.app/
@@ -107,44 +107,69 @@ import { selectedWallet, connectedWallets } from 'avm-wallet-svelte';
 ```
 
 ### Signing Transactions
-Send transactions to the current selected wallet and sign them:
-```
-import { signAndSendTransactions, selectedWallet, ProviderStore } from 'avm-wallet-svelte';
-import { get } from 'svelte/store';
+Capture the selected account and app when the user clicks, before awaiting transaction parameters.
+Use that signer for building and signing the entire request:
+```svelte
+<script lang="ts">
+import { signAndSendTransactions, selectedWallet } from 'avm-wallet-svelte';
 import algosdk from 'algosdk';
 
-const fromWallet = get(selectedWallet); // current wallet selected by user
-const toWallet = 'ADDRESS_OF_WALLET_TO_SEND_TO';
-
-if (fromWallet) {
-    const algodClient = get(ProviderStore).algodClient; // get the algodClient provided to the component
-    if (!algodClient) {
-        throw new Error("Algod client not available");
-    }
+// Use the algodClient initialized above and supplied to <Web3Wallet>.
+async function onSendClick() {
+    const wallet = $selectedWallet;
+    if (!wallet) throw new Error('No wallet selected');
+    const signer = { address: wallet.address, app: wallet.app };
+    const toWallet = 'ADDRESS_OF_WALLET_TO_SEND_TO';
     const params = await algodClient.getTransactionParams().do();
 
     const txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
-        from: fromWallet,
+        from: signer.address,
         to: toWallet,
         amount: 1000, // amount to pay in microAlgos
         suggestedParams: params
     });
-
-    const allTxns: algosdk.Transaction[] = [];
-    allTxns.push(txn);
+    const allTxns = [txn];
 
     try {
-        const status = signAndSendTransactions([allTxns]);
-        // if you want to use a different algodClient instance
-        // or if none was provided to the <Web3Wallet/> component:
-        // const status = signAndSendTransactions([allTxns], algodClient);
+        const status = await signAndSendTransactions([allTxns], signer);
+        // To use a different client, or if none was supplied to <Web3Wallet>:
+        // const status = await signAndSendTransactions([allTxns], signer, algodClient);
+        console.log(status);
     }
-    catch(e: any) {
-        // error handling -- future plan is to make error events consistent across wallets
-        console.log(e.message);
+    catch (error) {
+        console.error(error);
     }
 }
+</script>
+
+<button on:click={onSendClick}>Send</button>
 ```
+
+### Migrating from 0.9 to 0.10
+
+Version 0.10.0 requires an explicit `TransactionSigner`, a readonly `{ address, app }` value,
+for both `signTransactions(groups, signer)` and `signAndSendTransactions(groups, signer, algodClient?)`.
+Capture a copy of `$selectedWallet`'s address and app at the click, before any asynchronous work;
+build every transaction with `signer.address`. Changing the picker during the request does not
+change its signer. Missing or malformed signers reject with a `TypeError`, including old calls
+that pass an Algod client as argument two. There is no selected-wallet fallback or automatic
+reconnect during signing.
+
+The optional `algodClient` moves from argument two to argument three; if omitted, the client
+provided to `<Web3Wallet>` is used. Every outer transaction must have the signer's sender address.
+Mixed-sender groups are rejected as a whole before any wallet is contacted. Watch accounts cannot sign.
+
+Three new runtime exports support callers: `SIGNER_API_VERSION` (currently `1`),
+`SignerDisconnectedError` (`code: 'SIGNER_DISCONNECTED'`) for a missing exact account/app pair or
+unavailable provider session, and `SignerTransactionMismatchError`
+(`code: 'SIGNER_TRANSACTION_MISMATCH'`) for a different sender. The signer type is also exported.
+Provider refusals propagate without retrying or switching apps. Lute and Kibisis have no
+non-prompting session account check; the captured app may prompt. Kibisis retains its existing
+connection/enable step.
+
+One-line call migration after capturing `signer`: `signAndSendTransactions(groups, algodClient)`
+becomes `signAndSendTransactions(groups, signer, algodClient)`; the one-argument form becomes
+`signAndSendTransactions(groups, signer)`.
 
 ### Authentication
 

@@ -2,7 +2,8 @@
 export { default as Web3Wallet } from './Web3Wallet.svelte';
 export { selectedWallet, connectedWallets, setOnAddHandler, setOnSelectHandler, pickWallet, setOnAuthHandler, showWalletList } from './store.js';
 export { getSelectedWalletToken, signAndSendTransactions, signTransactions, Wallets as WalletOptions, verifyToken } from './wallets.js';
-export type { WalletConnectionResult } from './wallets.js';
+export { SIGNER_API_VERSION, SignerDisconnectedError, SignerTransactionMismatchError } from './wallets.js';
+export type { TransactionSigner, WalletConnectionResult } from './wallets.js';
 export type { AVMWalletStore, SelectedWalletStore } from './store.js';
 export { authenticateSelectedWallet } from './utils.js';
 export { clearSessions as clearWalletConnectSessions, forceReconnect as forceWalletConnectReconnect, debugWalletConnectState } from './walletconnect.js';
