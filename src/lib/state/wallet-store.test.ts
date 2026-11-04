@@ -42,11 +42,11 @@ it('restores the persisted selection pair and preserves it on add', () => {
 
 it('keeps selection when a different address is removed', () => {
 	const store = createWalletStore('selection-remove-other');
-	const b = account('B');
-	store.addAccounts([account('A'), b]);
-	store.selectAccount(b);
-	store.removeAccount('pera', 'A');
-	expect(store.selectedAccount).toEqual(b);
+	const selected = account('C');
+	store.addAccounts([account('A'), account('B'), selected]);
+	store.selectAccount(selected);
+	store.removeAccount('pera', 'B');
+	expect(store.selectedAccount).toEqual(selected);
 });
 
 it('keeps the selected pair when the same address in another wallet is removed', () => {

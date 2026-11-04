@@ -188,7 +188,12 @@ export function createWalletStore(scopeId = 'default') {
 			);
 
 			// Update selection if needed
-			if (selectedAccount && toRemove.some((a) => a.address === selectedAccount?.address)) {
+			if (
+				selectedAccount &&
+				toRemove.some(
+					(a) => a.address === selectedAccount?.address && a.walletId === selectedAccount?.walletId
+				)
+			) {
 				selectedAccount = accounts[0] ?? null;
 			}
 
