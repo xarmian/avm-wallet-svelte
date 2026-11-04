@@ -16,8 +16,16 @@ function token({
 	lastValid = 10,
 	prefix = 'avm-wallet-auth',
 	expiry = now + day90,
-	note = `${prefix} ${expiry}`,
+	note,
 	key = owner.sk
+}: {
+	receiver?: string;
+	firstValid?: number;
+	lastValid?: number;
+	prefix?: string;
+	expiry?: number;
+	note?: string;
+	key?: Uint8Array;
 } = {}) {
 	const txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
 		sender: address,
@@ -32,7 +40,7 @@ function token({
 			genesisID: 'test-v1',
 			minFee: 1000
 		},
-		note: Uint8Array.from(new TextEncoder().encode(note))
+		note: Uint8Array.from(new TextEncoder().encode(note ?? `${prefix} ${expiry}`))
 	});
 	return Buffer.from(txn.signTxn(key)).toString('base64');
 }
