@@ -9,6 +9,7 @@ import {
 	uiState as defaultUiState
 } from './ui-store.svelte.js';
 import { WalletRegistry, registry as defaultRegistry } from '../adapters/registry.js';
+import { createSigning } from '../signing.js';
 
 /**
  * Svelte context key for the wallet scope.
@@ -26,6 +27,8 @@ export interface WalletScope {
 	readonly uiState: ReturnType<typeof createUIStore>['uiState'];
 	readonly uiStore: ReturnType<typeof createUIStore>['uiStore'];
 	readonly registry: WalletRegistry;
+	readonly signTransactions: ReturnType<typeof createSigning>['signTransactions'];
+	readonly signAndSendTransactions: ReturnType<typeof createSigning>['signAndSendTransactions'];
 }
 
 /**
@@ -51,7 +54,12 @@ export function createWalletScope(scopeId = 'default'): WalletScope {
 			providerStore: defaultProviderStore,
 			uiState: defaultUiState,
 			uiStore: defaultUiStore,
-			registry: defaultRegistry
+			registry: defaultRegistry,
+			...createSigning({
+				walletStore: defaultWalletStore,
+				registry: defaultRegistry,
+				providerStore: defaultProviderStore
+			})
 		};
 	}
 
@@ -66,7 +74,8 @@ export function createWalletScope(scopeId = 'default'): WalletScope {
 		providerStore,
 		uiState,
 		uiStore,
-		registry
+		registry,
+		...createSigning({ walletStore, registry, providerStore })
 	};
 }
 

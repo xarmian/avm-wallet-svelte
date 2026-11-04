@@ -39,6 +39,17 @@ export {
 } from './state/index.js';
 export type { WalletScope } from './state/index.js';
 
+// Explicit signer API
+export {
+	createSigning,
+	SIGNER_API_VERSION,
+	SignerDisconnectedError,
+	SignerTransactionMismatchError,
+	SignerWatchOnlyError,
+	SignerResultMismatchError
+} from './signing.js';
+export type { TransactionSigner, SignOptions } from './signing.js';
+
 // State types
 export type {
 	ConnectedAccount,

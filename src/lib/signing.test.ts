@@ -26,6 +26,7 @@ function payment(sender = a, amount = 1) {
 		amount,
 		suggestedParams: {
 			fee: 1000,
+			minFee: 1000,
 			flatFee: true,
 			firstValid: 1,
 			lastValid: 100,
@@ -40,7 +41,7 @@ function adapter(walletId: WalletId = 'pera') {
 		name: walletId,
 		icon: '',
 		supportsAuth: false,
-		isWatchOnly: false,
+		isWatchOnly: false as boolean,
 		initialize: vi.fn(),
 		connect: vi.fn(),
 		disconnect: vi.fn(),
@@ -52,7 +53,7 @@ function adapter(walletId: WalletId = 'pera') {
 		signAndSendTransactions: vi.fn()
 	} satisfies WalletAdapter;
 }
-function setup() {
+function setup(hasAlgod = true) {
 	const walletStore = createWalletStore(`signing-${++id}`);
 	walletStore.addAccounts([{ ...signer, authenticated: false, isWatch: false }]);
 	const pera = adapter();
@@ -77,7 +78,7 @@ function setup() {
 	const input = {
 		walletStore,
 		registry: { getAdapter },
-		providerStore: { algodClient: algod }
+		providerStore: { algodClient: hasAlgod ? algod : null }
 	} as unknown as Pick<WalletScope, 'walletStore' | 'registry' | 'providerStore'>;
 	return {
 		...createSigning(input),
@@ -118,6 +119,7 @@ for (const method of ['signTransactions', 'signAndSendTransactions'] as const) {
 			expect(() => {
 				result = s[method]([[payment()]], invalid as TransactionSigner);
 			}).not.toThrow();
+			await expect(result).rejects.toBeInstanceOf(TypeError);
 			await expect(result).rejects.toThrow(
 				new TypeError('An explicit signer { address, walletId } is required.')
 			);
@@ -229,16 +231,20 @@ for (const method of ['signTransactions', 'signAndSendTransactions'] as const) {
 			}
 		);
 
-		it.each([[], [[]], [[payment()], []], null, {}, [payment()]])(
-			'rejects an empty or malformed request (%j)',
-			async (groups) => {
-				const s = setup();
-				await expect(s[method](groups as algosdk.Transaction[][], signer)).rejects.toThrow(
-					new TypeError('At least one transaction is required.')
-				);
-				noDispatch(s);
-			}
-		);
+		it.each([
+			{ groups: [] },
+			{ groups: [[]] },
+			{ groups: [[payment()], []] },
+			{ groups: null },
+			{ groups: {} },
+			{ groups: [payment()] }
+		])('rejects an empty or malformed request ($groups)', async ({ groups }) => {
+			const s = setup();
+			const result = s[method](groups as algosdk.Transaction[][], signer);
+			await expect(result).rejects.toBeInstanceOf(TypeError);
+			await expect(result).rejects.toThrow('At least one transaction is required.');
+			noDispatch(s);
+		});
 
 		it('passes only the message option to the explicit signer adapter', async () => {
 			const s = setup();
@@ -335,6 +341,7 @@ it('submits and confirms two groups sequentially without using adapter submissio
 	s.pera.signTransactions.mockResolvedValue(blobs);
 	const order: string[] = [];
 	s.send
+		.mockReset()
 		.mockImplementationOnce(async () => {
 			order.push('send1');
 			return { txid: 'tx1' };
@@ -344,6 +351,7 @@ it('submits and confirms two groups sequentially without using adapter submissio
 			return { txid: 'tx2' };
 		});
 	s.pending
+		.mockReset()
 		.mockImplementationOnce(async () => {
 			order.push('confirm1');
 			return { confirmedRound: 11n };
@@ -391,8 +399,7 @@ it('propagates submission errors without submitting a later group', async () => 
 });
 
 it('rejects a missing algod client before signing', async () => {
-	const s = setup();
-	s.input.providerStore = { algodClient: null } as typeof s.input.providerStore;
+	const s = setup(false);
 	await expect(s.signAndSendTransactions([[payment()]], signer)).rejects.toThrow(
 		'Algod client not available'
 	);
