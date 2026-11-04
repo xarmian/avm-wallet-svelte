@@ -23,7 +23,7 @@ three retained function names are listed with their current behavior.
 | `debugWalletConnectState`     | No replacement                                                                                                               |
 | `signTransactions`            | Retained name; now `signTransactions(groups, signer, options?)` in the default scope                                         |
 | `signAndSendTransactions`     | Retained name; now `signAndSendTransactions(groups, signer, options?)` in the default scope                                  |
-| `verifyToken`                 | Retained unchanged, imported from `'avm-wallet-svelte'`                                                                      |
+| `verifyToken`                 | Retained, imported from `'avm-wallet-svelte'`; one outcome changed (see Token verification)                                  |
 
 `clearAllSessions()` clears WalletConnect storage across sessions. Use it only when
 that reset is intended. For multiple scopes, use the relevant scope's `walletStore`,
