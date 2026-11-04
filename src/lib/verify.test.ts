@@ -16,6 +16,7 @@ function token({
 	lastValid = 10,
 	prefix = 'avm-wallet-auth',
 	expiry = now + day90,
+	note = `${prefix} ${expiry}`,
 	key = owner.sk
 } = {}) {
 	const txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
@@ -31,7 +32,7 @@ function token({
 			genesisID: 'test-v1',
 			minFee: 1000
 		},
-		note: Uint8Array.from(new TextEncoder().encode(`${prefix} ${expiry}`))
+		note: Uint8Array.from(new TextEncoder().encode(note))
 	});
 	return Buffer.from(txn.signTxn(key)).toString('base64');
 }
@@ -81,6 +82,20 @@ describe('verifyToken', () => {
 		await expect(verifyToken(address, token({ expiry: Number(expiry) }))).rejects.toThrow(
 			'Token expired, authenticate again'
 		);
+	});
+	it.each([
+		['non-numeric', 'avm-wallet-auth nope'],
+		['Infinity', 'avm-wallet-auth Infinity'],
+		['beyond the double range', 'avm-wallet-auth 1e999'],
+		['empty', 'avm-wallet-auth '],
+		['absent', 'avm-wallet-auth']
+	])('throws when the expiry is %s', async (_label, note) => {
+		await expect(verifyToken(address, token({ note }))).rejects.toThrow(
+			'Token expired, authenticate again'
+		);
+	});
+	it('accepts a valid numeric expiry shortly ahead', async () => {
+		await expect(verifyToken(address, token({ expiry: now + 1000 }))).resolves.toBe(true);
 	});
 	it.each(['not base64!!!', Buffer.from('not a transaction').toString('base64')])(
 		'rejects malformed token %s',

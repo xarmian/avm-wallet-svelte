@@ -32,10 +32,10 @@ export const verifyToken = async (wallet: string, token: string): Promise<boolea
 
 	// Guard clause to make sure the token has not expired.
 	// We also check the token expiration is not too far out, which would be a red flag.
-	if (
-		Number(decodedNote[1]) < Date.now() ||
-		Number(decodedNote[1]) > Date.now() + day90 + minutes30
-	) {
+	// An expiry that is not a finite number (missing or non-numeric) counts as expired:
+	// every comparison against NaN is false, so it would otherwise never expire.
+	const expiry = Number(decodedNote[1]);
+	if (!Number.isFinite(expiry) || expiry < Date.now() || expiry > Date.now() + day90 + minutes30) {
 		throw new Error('Token expired, authenticate again');
 	}
 
