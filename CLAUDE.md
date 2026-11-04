@@ -162,7 +162,7 @@ CSS custom properties for theming:
 - **WalletConnect**: Requires `wcConfig` with project ID from WalletConnect Cloud. The underlying `UniversalProvider` is a shared singleton; concurrent WC sessions across scopes use topic-based session isolation.
 - **ESLint 9**: Uses flat config format (`eslint.config.js`)
 - **Tailwind 3.4**: CSS custom properties define the theme
-- **Public API**: Legacy v1 modules and exports are removed. `verifyToken` retains its behavior; package-root signing aliases require an explicit `{ address, walletId }` signer and use the default scope. Apps with multiple scopes call their own scope's signing methods.
+- **Public API**: Legacy v1 modules and exports are removed. `verifyToken` keeps its name, import path and signature; a missing or non-numeric expiry now counts as expired; package-root signing aliases require an explicit `{ address, walletId }` signer and use the default scope. Apps with multiple scopes call their own scope's signing methods.
 
 ## File Types
 
