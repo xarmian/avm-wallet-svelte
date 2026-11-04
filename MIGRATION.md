@@ -88,6 +88,11 @@ relied on them transitively, declare them directly. `@noble/ed25519` and
 
 # Migration Guide: v1.x to v2.0
 
+> **Historical guide.** This section describes moving from v1.x to v2.0. The v1 API it
+> shows (the legacy stores, components and signing functions) was removed in v3.0, and the
+> raw adapter signing shown for v2.0 skips the signer checks. For anything you write today,
+> follow [Migrating from v2.x to v3.0](#migrating-from-v2x-to-v30) above.
+
 This guide helps you migrate from avm-wallet-svelte v1.x to v2.0. The v2.0 release is a complete rewrite with a new architecture, improved type safety, and better customization options.
 
 ## Breaking Changes Summary
@@ -100,7 +105,7 @@ This guide helps you migrate from avm-wallet-svelte v1.x to v2.0. The v2.0 relea
 | Styling              | `walletListClass` prop                 | CSS custom properties                                 |
 | State Access         | `$connectedWallets`, `$selectedWallet` | `walletStore.accounts`, `walletStore.selectedAccount` |
 | Event Handlers       | `setOnAddHandler()`                    | `walletStore.onAdd()`                                 |
-| Signing              | `signTransactions()`                   | `adapter.signTransactions()`                          |
+| Signing              | `signTransactions()`                   | `adapter.signTransactions()` (v3.0: the signer API)   |
 
 ## Quick Migration
 
@@ -242,13 +247,16 @@ import { signTransactions, signAndSendTransactions } from 'avm-wallet-svelte';
 const signed = await signTransactions(txnGroups);
 await signAndSendTransactions(txnGroups, algodClient);
 
-// v2.0
-import { registry } from 'avm-wallet-svelte';
+// v2.0 signed through a raw adapter (registry.getAdapter(id).signTransactions(txnGroups)),
+// which does not check that the account is connected or that it sent the transactions.
+// From v3.0, capture the signer when the user confirms and sign through the signer API:
+import { signTransactions, signAndSendTransactions, walletStore } from 'avm-wallet-svelte';
 
-// Get the adapter for the current wallet
-const adapter = registry.getAdapter('pera');
-const signed = await adapter.signTransactions(txnGroups);
-const result = await adapter.signAndSendTransactions(txnGroups);
+const account = walletStore.selectedAccount;
+if (!account) throw new Error('No account selected');
+const signer = { address: account.address, walletId: account.walletId };
+const signed = await signTransactions(txnGroups, signer);
+const result = await signAndSendTransactions(txnGroups, signer);
 ```
 
 ### 5. Authentication
@@ -263,13 +271,11 @@ const token = getSelectedWalletToken();
 // v2.0
 import { registry, walletStore } from 'avm-wallet-svelte';
 
-const adapter = registry.getAdapter(walletStore.selectedAccount.walletId);
-const token = await adapter.authenticate(walletStore.selectedAccount.address);
-walletStore.setAuthenticated(
-	walletStore.selectedAccount.walletId,
-	walletStore.selectedAccount.address,
-	token
-);
+const account = walletStore.selectedAccount;
+const adapter = account && registry.getAdapter(account.walletId);
+if (!account || !adapter?.authenticate) throw new Error('No account that can sign in');
+const token = await adapter.authenticate(account.address);
+walletStore.setAuthenticated(account.walletId, account.address, token);
 
 // Get token
 const storedToken = walletStore.getToken(address);
