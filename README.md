@@ -12,10 +12,10 @@ connections are restored automatically.
 
 The component supports:
 
-- Fast wallet switching, detectable through a svelte store subscription (see below)
+- Fast wallet switching through reactive Svelte 5 state (see below)
 - Multiple wallets and accounts connected simultaneously
 - Authentication token creation and storage
-- Universal signing API to sign and transmit transactions using the current selected wallet
+- Explicit signer API to sign and transmit transactions for a connected account
 
 Current wallets supported:
 
@@ -48,8 +48,8 @@ import { Web3Wallet } from 'avm-wallet-svelte';
 ```
 
 To facilitate actions that require an algod node, such as submitting transactions to the network,
-you can either initialize the component with the algodClient or pass the algodClient to
-the function (i.e. `signAndSendTransactions` below).
+initialize the component with `algodClient`. Signing and submission use the clients
+from the signer's scope.
 
 ```
 import algosdk from 'algosdk';
@@ -63,17 +63,11 @@ const algodClient = new algosdk.Algodv2(token, server, port);
 <Web3Wallet {algodClient} />
 ```
 
-You can also specify which wallets to enable by passing an array of wallet names in the component's
-`availableWallets` parameter. All supported wallets are enabled by default.
-I.e. to only show PeraWallet and Kibisis:
+Choose wallets with the `enabledWallets` prop and typed `WalletId` strings. For example,
+to show only Pera and Kibisis:
 
-```
-<Web3Wallet {algodClient} availableWallets={['PeraWallet','Kibisis']} />
-
-// or
-
-import { WalletOptions } from 'avm-wallet-svelte';
-<Web3Wallet availableWallets={[WalletOptions.PERA,WalletOptions.KIBISIS]} />
+```svelte
+<Web3Wallet {algodClient} enabledWallets={['pera', 'kibisis']} />
 ```
 
 ### Watched Accounts
@@ -90,28 +84,36 @@ To enable watched accounts, pass `allowWatchAccounts={true}` to the Web3Wallet c
 ### WalletConnect
 
 If using WalletConnect you must obtain a Project ID from WalletConnect at https://cloud.walletconnect.com.
-This must be passed to the Web3Wallet component as argument `wcProjectId`, i.e.:
+Pass the configuration through the `wcConfig` prop:
 
-const projectId = '[project id obtained from walletconnect cloud portal]';
-<Web3Wallet {algodClient} availableWallets={['PeraWallet','WalletConnect']} wcProject={{
-    projectId: '<project id from walletconnect cloud portal>',
-    projectName: '<project name>',
-    projectDescription: '<project description>',
-    projectUrl: '<project url>',
-    projectIcons: ['<icon url>']
-}}>
+```svelte
+<Web3Wallet
+	{algodClient}
+	enabledWallets={['pera', 'walletconnect']}
+	wcConfig={{
+		projectId: '<project id>',
+		name: 'My app',
+		description: 'My wallet app',
+		url: 'https://example.com',
+		icons: ['https://example.com/icon.png']
+	}}
+/>
+```
 
 ### Stores
 
-This package utilizes stores to expose the list of connected wallets and the user's currently selected wallet,
-making these available by importing and subscribing to the stores:
+`walletStore` exposes reactive accounts and selection. Read its properties in a template,
+or use `$derived` for reactive local values:
 
-```
-import { selectedWallet, connectedWallets } from 'avm-wallet-svelte';
+```svelte
+<script lang="ts">
+	import { walletStore } from 'avm-wallet-svelte';
+	let selected = $derived(walletStore.selectedAccount);
+</script>
 
-<div>{$selectedWallet.address}</div>
-{#each $connectedWallets as wallet}
-    <div>Connected Wallet: ${wallet.address} with ${wallet.app}</div>
+<div>{selected?.address ?? 'No account selected'}</div>
+{#each walletStore.accounts as account}
+	<div>Connected account: {account.address} with {account.walletId}</div>
 {/each}
 ```
 
@@ -180,55 +182,54 @@ async function confirmPayment(account: ConnectedAccount, groups: Transaction[][]
 Adapter methods obtained from `scope.registry.getAdapter(...)` are the low-level
 wallet-driver layer. They do not apply the explicit signer or sender check above.
 
-### Signing Transactions
+### Default-scope signing
 
-Send transactions to the current selected wallet and sign them:
+The package-root `signTransactions` and `signAndSendTransactions` aliases use the
+`default` scope and require the same signer argument. Apps using multiple scopes
+must call each scope's own methods.
 
-```
-import { signAndSendTransactions, selectedWallet, ProviderStore } from 'avm-wallet-svelte';
-import { get } from 'svelte/store';
+```ts
+import { signAndSendTransactions, walletStore, providerStore } from 'avm-wallet-svelte';
 import algosdk from 'algosdk';
 
-const fromWallet = get(selectedWallet); // current wallet selected by user
-const toWallet = 'ADDRESS_OF_WALLET_TO_SEND_TO';
-
-if (fromWallet) {
-    const algodClient = get(ProviderStore).algodClient; // get the algodClient provided to the component
-    if (!algodClient) {
-        throw new Error("Algod client not available");
-    }
-    const params = await algodClient.getTransactionParams().do();
-
-    const txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
-        from: fromWallet,
-        to: toWallet,
-        amount: 1000, // amount to pay in microAlgos
-        suggestedParams: params
-    });
-
-    const allTxns: algosdk.Transaction[] = [];
-    allTxns.push(txn);
-
-    try {
-        const status = signAndSendTransactions([allTxns]);
-        // if you want to use a different algodClient instance
-        // or if none was provided to the <Web3Wallet/> component:
-        // const status = signAndSendTransactions([allTxns], algodClient);
-    }
-    catch(e: any) {
-        // error handling -- future plan is to make error events consistent across wallets
-        console.log(e.message);
-    }
+async function sendPayment(receiver: string) {
+	const account = walletStore.selectedAccount;
+	if (!account) throw new Error('No account selected');
+	const signer = { address: account.address, walletId: account.walletId };
+	const client = providerStore.algodClient;
+	if (!client) throw new Error('Algod client not available');
+	const params = await client.getTransactionParams().do();
+	const txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+		sender: signer.address,
+		receiver,
+		amount: 1000,
+		suggestedParams: params
+	});
+	return signAndSendTransactions([[txn]], signer, { message: 'Confirm payment' });
 }
 ```
 
 ### Authentication
 
-This section needs more documentation. Web3Wallet accepts an optional boolean parameter `showAuthButtons`.
-If true, users will see an `auth` option after connecting their wallet. Clicking `auth` will send a validation
-transaction to their wallet. Once authenticated, the signed transaction is stored as a token in the browser's
-secure cookie storage and can be used for authentication. Token expiration is currently hard-coded for 90 days
-with plans to be customizable in the future.
+Set `showSignInButton={true}` on `Web3Wallet` to show sign-in actions. Signing in
+creates a zero-amount self-payment with an `avm-wallet-auth` expiry note. The signed
+transaction is stored as a base64 token in a secure cookie for 90 days. Read the
+stored token with `walletStore.getToken(address)`.
+
+### Verifying sign-in tokens
+
+`verifyToken(address, token)` checks the base64-encoded signed authentication
+transaction produced by `adapter.authenticate(address)`. It checks the address,
+self-payment receiver, validity rounds, note prefix, expiry and Ed25519 signature.
+It returns `false` for a mismatch and throws `Error('Token expired, authenticate again')`
+for an expired token or an expiry beyond 90 days plus 30 minutes. Malformed tokens
+can throw decoding errors.
+
+```ts
+import { verifyToken } from 'avm-wallet-svelte';
+
+const valid = await verifyToken(address, token);
+```
 
 ### Roadmap
 
