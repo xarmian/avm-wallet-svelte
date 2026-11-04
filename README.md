@@ -222,8 +222,11 @@ stored token with `walletStore.getToken(address)`.
 transaction produced by `adapter.authenticate(address)`. It checks the address,
 self-payment receiver, validity rounds, note prefix, expiry and Ed25519 signature.
 It returns `false` for a mismatch and throws `Error('Token expired, authenticate again')`
-for an expired token or an expiry beyond 90 days plus 30 minutes. Malformed tokens
-can throw decoding errors.
+for an expired token, an expiry beyond 90 days plus 30 minutes ahead, or a missing or
+non-numeric expiry. The expiry is a timestamp the signer wrote into the token's note, so
+`verifyToken` accepts a token only while that stated expiry has not passed and is at most
+90 days (plus 30 minutes) ahead; it cannot tell when the token was actually signed.
+Malformed tokens can throw decoding errors.
 
 ```ts
 import { verifyToken } from 'avm-wallet-svelte';

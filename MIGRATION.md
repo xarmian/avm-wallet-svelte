@@ -73,10 +73,16 @@ the [Signing section](./README.md#signing-v2) for submission status details.
 ## Token verification
 
 `verifyToken(wallet: string, token: string): Promise<boolean>` keeps its name,
-package-root import path and behavior. It checks the base64 signed authentication
+package-root import path and signature. It checks the base64 signed authentication
 transaction, returns `false` on a mismatch, and throws
 `Error('Token expired, authenticate again')` on expiry or an expiry too far ahead.
-Malformed input can throw decoding errors.
+The expiry is a timestamp the signer wrote into the token's note: a token is accepted
+only while that stated expiry has not passed and is at most 90 days (plus 30 minutes)
+ahead, and `verifyToken` cannot tell when the token was actually signed. One outcome
+changed in 3.0.0: a token whose expiry is missing or non-numeric is now treated as
+expired and throws the same error (before, such a token never expired). Tokens minted
+by the library always carry a numeric expiry, so they are unaffected. Malformed input
+can throw decoding errors.
 
 ## Removed dependencies
 
