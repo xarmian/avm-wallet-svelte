@@ -142,17 +142,22 @@ The API exports five typed errors with stable `code` fields:
   `groupIndex`, the original `cause`, and `groups` with one status per requested group,
   in order.
 
-Each `SubmissionGroupStatus` contains `index`, `txIds`, and a `SubmissionGroupState`:
+Each `SubmissionGroupStatus` contains `index`, `txIds`, and a `SubmissionGroupState`.
+Every group's `txIds` are computed locally from the transaction snapshot before any
+send, including groups never attempted. All of these IDs can be looked up on chain.
 
-- `confirmed`: send and confirmation succeeded; `txIds` contains that group's txid.
-- `submitted-unconfirmed`: send succeeded but confirmation failed or timed out;
-  `txIds` contains that group's txid, which may still land.
-- `not-sent`: the group was never sent or its send call failed; `txIds` is empty.
-  Groups after the failing group have this state.
+- `confirmed`: send and confirmation succeeded.
+- `submitted-unconfirmed`: the group may have landed. This includes a confirmation
+  failure or timeout, a send that errored without an algod rejection, and a 400
+  "already in ledger" response.
+- `not-sent`: the group was never attempted or algod definitely rejected the
+  transaction itself with an HTTP 400 response. Groups after the failing group have
+  this state.
 
-A retry must re-check every `submitted-unconfirmed` txId on chain before re-signing,
-because that group may still land. Errors raised before submission keep their existing
-types and are not wrapped in `SignerSubmissionError`.
+A retry must re-check on chain every txId of every `submitted-unconfirmed` group
+before re-signing, because that group may have landed. The successful return value
+still contains one algod txid per group. Errors raised before submission keep their
+existing types and are not wrapped in `SignerSubmissionError`.
 
 Capture the signer from the account shown to the user at the moment they confirm,
 before any asynchronous work:

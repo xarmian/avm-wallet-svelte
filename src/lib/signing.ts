@@ -71,8 +71,12 @@ export class SignerResultMismatchError extends Error {
 }
 
 /**
- * A retry must re-check every submitted-unconfirmed txId on chain before re-signing,
- * because that group may still land.
+ * Every group's txIds are computed locally and can be looked up on chain.
+ * A retry must re-check on chain every txId of every submitted-unconfirmed group
+ * before re-signing, because that group may have landed. This includes a send
+ * that errored without an algod rejection and a 400 "already in ledger" response.
+ * A not-sent group was never attempted or algod definitely rejected the
+ * transaction itself.
  */
 export class SignerSubmissionError extends Error {
 	readonly name = 'SignerSubmissionError';
@@ -88,6 +92,26 @@ export class SignerSubmissionError extends Error {
 		);
 		Object.setPrototypeOf(this, new.target.prototype);
 	}
+}
+
+function classifySendFailure(cause: unknown): SubmissionGroupState {
+	if (
+		!(cause instanceof Error) ||
+		typeof cause.message !== 'string' ||
+		!('response' in cause) ||
+		typeof cause.response !== 'object' ||
+		cause.response === null ||
+		!('status' in cause.response) ||
+		cause.response.status !== 400 ||
+		/already|in pool/i.test(cause.message)
+	) {
+		return 'submitted-unconfirmed';
+	}
+	return /overspend|signature|txn dead|outside of|below min|fee too small|malformed/i.test(
+		cause.message
+	)
+		? 'not-sent'
+		: 'submitted-unconfirmed';
 }
 
 const walletIds: readonly WalletId[] = [
@@ -215,9 +239,9 @@ export function createSigning(
 		async signAndSendTransactions(groups, signer, options) {
 			const { signed, algod, snapshot } = await resolve(groups, signer, options, true);
 			const txIds: string[] = [];
-			const statuses: SubmissionGroupStatus[] = snapshot.map((_group, index) => ({
+			const statuses: SubmissionGroupStatus[] = snapshot.map((group, index) => ({
 				index,
-				txIds: [],
+				txIds: group.map((txn) => txn.txID()),
 				state: 'not-sent'
 			}));
 			let confirmedRound = 0n;
@@ -228,15 +252,20 @@ export function createSigning(
 				try {
 					const { txid } = await algod!.sendRawTransaction(blobs).do();
 					statuses[groupIndex] = {
-						index: groupIndex,
-						txIds: [txid],
+						...statuses[groupIndex],
 						state: 'submitted-unconfirmed'
 					};
 					const confirmation = await algosdk.waitForConfirmation(algod!, txid, 4);
-					statuses[groupIndex] = { index: groupIndex, txIds: [txid], state: 'confirmed' };
+					statuses[groupIndex] = { ...statuses[groupIndex], state: 'confirmed' };
 					txIds.push(txid);
 					confirmedRound = confirmation.confirmedRound ?? confirmedRound;
 				} catch (cause) {
+					if (statuses[groupIndex].state === 'not-sent') {
+						statuses[groupIndex] = {
+							...statuses[groupIndex],
+							state: classifySendFailure(cause)
+						};
+					}
 					throw new SignerSubmissionError(groupIndex, statuses, cause);
 				}
 			}
