@@ -4,7 +4,7 @@
 		walletStore,
 		uiState,
 		providerStore,
-		registry,
+		signTransactions,
 		getScope
 	} from '$lib/index.js';
 	import algosdk from 'algosdk';
@@ -109,22 +109,19 @@
 			return;
 		}
 
+		const { address, walletId } = selectedAccount;
+		const signer = { address, walletId };
+
 		txSigning = true;
 		txError = null;
 		txResult = null;
 
 		try {
-			// Get the adapter for this wallet
-			const adapter = registry.getAdapter(selectedAccount.walletId);
-			if (!adapter) {
-				throw new Error(`Adapter not found for wallet: ${selectedAccount.walletId}`);
-			}
-
 			// Get suggested params from the network
 			const suggestedParams = await algodClient.getTransactionParams().do();
 
 			// Determine receiver (use provided or self)
-			const receiver = txReceiver.trim() || selectedAccount.address;
+			const receiver = txReceiver.trim() || address;
 
 			// Validate receiver address
 			if (!algosdk.isValidAddress(receiver)) {
@@ -133,7 +130,7 @@
 
 			// Create payment transaction
 			const txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
-				sender: selectedAccount.address,
+				sender: address,
 				receiver: receiver,
 				amount: BigInt(txAmount),
 				note: txNote ? new TextEncoder().encode(txNote) : undefined,
@@ -141,7 +138,7 @@
 			});
 
 			// Sign the transaction (do NOT send)
-			const signedTxns = await adapter.signTransactions([[txn]], {
+			const signedTxns = await signTransactions([[txn]], signer, {
 				message: 'Sign this test transaction (it will NOT be broadcast)'
 			});
 
@@ -159,7 +156,7 @@
 			try {
 				if (signedTxn.sig) {
 					// Get the public key from the sender address
-					const senderAddr = algosdk.decodeAddress(selectedAccount.address);
+					const senderAddr = algosdk.decodeAddress(address);
 					// Get the bytes that were signed (includes "TX" prefix)
 					const bytesToSign = txnObj.bytesToSign();
 					// Use nacl to verify the ed25519 signature directly
@@ -182,7 +179,7 @@
 			}
 
 			// Get sender and receiver addresses - handle algosdk v3 structure
-			const senderAddress = txnObj.sender?.toString() || selectedAccount.address;
+			const senderAddress = txnObj.sender?.toString() || address;
 			const receiverAddress = txnObj.payment?.receiver?.toString() || receiver;
 
 			// Build result
