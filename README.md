@@ -115,6 +115,71 @@ import { selectedWallet, connectedWallets } from 'avm-wallet-svelte';
 {/each}
 ```
 
+### Signing (v2)
+
+A `TransactionSigner` is an explicit `{ address, walletId }` pair. Use
+`scope.signTransactions(groups, signer, options?)` to receive signed bytes, or
+`scope.signAndSendTransactions(groups, signer, options?)` to sign, submit each group
+in order and wait for confirmation using the scope's Algod client. The only signing
+option is `message`.
+
+The signer is required; there is no fallback to the selected account. Its exact
+account and wallet pair must be connected in that scope. Every outer transaction
+must have the signer's address as its sender, including every transaction in a
+group. Mixed-sender groups are rejected before signing. Signed results are checked
+against the requested transaction IDs before they are returned or submitted.
+Transactions and group boundaries are snapshotted before signing, so caller mutations
+during the wallet prompt do not change the request.
+
+The API exports five typed errors with stable `code` fields:
+
+- `SignerDisconnectedError`: the account pair or its wallet is disconnected.
+- `SignerWatchOnlyError`: the account or adapter is watch-only.
+- `SignerTransactionMismatchError`: a sender differs; includes `groupIndex` and `transactionIndex`.
+- `SignerResultMismatchError`: returned signed bytes have an unexpected count, are empty,
+  or do not match; includes the flat `index` and `reason` (`count`, `empty`, or `mismatch`).
+- `SignerSubmissionError`: a group send or confirmation failed; includes the zero-based
+  `groupIndex`, the original `cause`, and `groups` with one status per requested group,
+  in order.
+
+Each `SubmissionGroupStatus` contains `index`, `txIds`, and a `SubmissionGroupState`.
+Every group's `txIds` are computed locally from the transaction snapshot before any
+send, including groups never attempted. All of these IDs can be looked up on chain.
+
+- `confirmed`: send and confirmation succeeded.
+- `submitted-unconfirmed`: the group may have landed. This includes a confirmation
+  failure or timeout, a send that errored without an algod rejection, and a 400
+  "already in ledger" response.
+- `not-sent`: the group was never attempted or algod definitely rejected the
+  transaction itself with an HTTP 400 response. This describes this call only: if an
+  earlier attempt sent the same signed transactions, they may already be on chain, so
+  check the `txIds` before re-signing. Groups after the failing group have this state.
+
+A retry must re-check on chain every txId of every `submitted-unconfirmed` group
+before re-signing, because that group may have landed. The successful return value
+still contains one algod txid per group. Errors raised before submission keep their
+existing types and are not wrapped in `SignerSubmissionError`.
+
+Capture the signer from the account shown to the user at the moment they confirm,
+before any asynchronous work:
+
+```ts
+import { getScope, type ConnectedAccount, type TransactionSigner } from 'avm-wallet-svelte';
+import type { Transaction } from 'algosdk';
+
+async function confirmPayment(account: ConnectedAccount, groups: Transaction[][]) {
+	const signer: TransactionSigner = { address: account.address, walletId: account.walletId };
+	const scope = getScope('default'); // Scope registered by the mounted Web3Wallet
+	if (!scope) throw new Error('Wallet scope not available');
+
+	return scope.signAndSendTransactions(groups, signer, { message: 'Confirm payment' });
+	// For signing only, use scope.signTransactions(groups, signer).
+}
+```
+
+Adapter methods obtained from `scope.registry.getAdapter(...)` are the low-level
+wallet-driver layer. They do not apply the explicit signer or sender check above.
+
 ### Signing Transactions
 
 Send transactions to the current selected wallet and sign them:

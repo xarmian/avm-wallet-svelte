@@ -8,6 +8,7 @@
 	const { walletStore, uiStore, registry } = getContext<WalletScope>(SCOPE_CONTEXT_KEY);
 
 	interface Props {
+		onAccountPicked?: (account: ConnectedAccount) => void;
 		showSignInStatus?: boolean;
 		showSignInButton?: boolean;
 		autoSignIn?: boolean;
@@ -19,6 +20,7 @@
 		showSignInStatus = false,
 		showSignInButton = false,
 		autoSignIn = false, // eslint-disable-line @typescript-eslint/no-unused-vars
+		onAccountPicked,
 		onAddAccount,
 		onClose
 	}: Props = $props();
@@ -56,6 +58,7 @@
 
 	function handleSelect(account: ConnectedAccount) {
 		walletStore.selectAccount(account);
+		onAccountPicked?.(account);
 		onClose?.();
 	}
 

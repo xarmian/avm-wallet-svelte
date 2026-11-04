@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { ConnectedAccount } from '../state/types.js';
 	import type { WalletId } from '../adapters/types.js';
 	import type { WalletInfo } from '../adapters/registry.js';
 
@@ -10,12 +11,13 @@
 	const { walletStore, providerStore, registry } = getContext<WalletScope>(SCOPE_CONTEXT_KEY);
 
 	interface Props {
+		onAccountPicked?: (account: ConnectedAccount) => void;
 		autoSignIn?: boolean;
 		onBack?: () => void;
 		onClose?: () => void;
 	}
 
-	let { autoSignIn = false, onBack, onClose }: Props = $props();
+	let { autoSignIn = false, onBack, onClose, onAccountPicked }: Props = $props();
 
 	// Get available wallets from registry
 	const wallets = $derived(registry.getWalletInfo());
@@ -75,6 +77,7 @@
 
 			// Select the first new account
 			walletStore.selectAccount(connectedAccounts[0]);
+			onAccountPicked?.(connectedAccounts[0]);
 
 			// Close the dropdown (account is selected)
 			onClose?.();

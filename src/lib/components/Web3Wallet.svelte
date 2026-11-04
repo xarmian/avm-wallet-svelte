@@ -22,6 +22,7 @@
 
 	// Props interface
 	interface Props {
+		onAccountPicked?: (account: ConnectedAccount) => void;
 		/** Algorand node client (required) */
 		algodClient: Algodv2;
 		/** Indexer client (optional) */
@@ -73,7 +74,8 @@
 		autoSignIn = false,
 		showSignInButton = false,
 		showSignInStatus = true,
-		trigger
+		trigger,
+		onAccountPicked
 	}: Props = $props();
 
 	// Resolve scope (intentionally captured once at init -- scope identity must not change after mount)
@@ -287,12 +289,14 @@
 						{showSignInStatus}
 						{showSignInButton}
 						{autoSignIn}
+						{onAccountPicked}
 						onAddAccount={openAddAccount}
 						onClose={closeList}
 					/>
 				{:else if currentView === 'add-account'}
 					<AddAccountView
 						{autoSignIn}
+						{onAccountPicked}
 						onBack={() => (currentView = 'selector')}
 						onClose={closeList}
 					/>
@@ -330,6 +334,7 @@
 								{showSignInStatus}
 								{showSignInButton}
 								{autoSignIn}
+								{onAccountPicked}
 								onAddAccount={openAddAccount}
 								onClose={closeList}
 							/>
@@ -338,6 +343,7 @@
 						<div class="avm-wallet__modal-body avm-wallet__modal-body--no-header">
 							<AddAccountView
 								{autoSignIn}
+								{onAccountPicked}
 								onBack={() => (currentView = 'selector')}
 								onClose={closeList}
 							/>
