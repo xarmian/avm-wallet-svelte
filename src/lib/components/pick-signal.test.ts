@@ -7,6 +7,7 @@ import Web3Wallet from './Web3Wallet.svelte';
 import { createWalletScope, SCOPE_CONTEXT_KEY } from '../state/scope.svelte.js';
 import type { ConnectedAccount } from '../state/types.js';
 import type { Algodv2 } from 'algosdk';
+import type { WalletAccount, WalletAdapter } from '../adapters/types.js';
 
 const a: ConnectedAccount = {
 	address: 'A',
@@ -25,6 +26,23 @@ function setup() {
 		{ id: 'pera', name: 'Pera', icon: '', isWatchOnly: false, supportsAuth: false }
 	]);
 	return { scope, context: new Map([[SCOPE_CONTEXT_KEY, scope]]), onAccountPicked: vi.fn() };
+}
+
+function fakeAdapter(accounts: WalletAccount[]) {
+	return {
+		id: 'pera',
+		name: 'Pera',
+		icon: '',
+		supportsAuth: false,
+		isWatchOnly: false,
+		initialize: vi.fn().mockResolvedValue(undefined),
+		connect: vi.fn().mockResolvedValue(accounts),
+		disconnect: vi.fn().mockResolvedValue(undefined),
+		reconnect: vi.fn().mockResolvedValue(null),
+		isConnected: vi.fn(() => true),
+		signTransactions: vi.fn().mockResolvedValue([]),
+		signAndSendTransactions: vi.fn().mockResolvedValue({ txIds: [], confirmedRound: 0n })
+	} satisfies WalletAdapter;
 }
 
 it('fires once immediately after an account row is selected', async () => {
@@ -76,13 +94,11 @@ it('does not fire for a restored selection', async () => {
 
 it('fires once with the first connected account after connecting', async () => {
 	const { scope, context, onAccountPicked } = setup();
-	const connect = vi.fn().mockResolvedValue([
+	const adapter = fakeAdapter([
 		{ address: a.address, name: a.name },
 		{ address: b.address, name: b.name }
 	]);
-	vi.spyOn(scope.registry, 'getAdapter').mockReturnValue({ connect } as ReturnType<
-		typeof scope.registry.getAdapter
-	>);
+	vi.spyOn(scope.registry, 'getAdapter').mockReturnValue(adapter);
 	onAccountPicked.mockImplementation((account) =>
 		expect(scope.walletStore.selectedAccount).toEqual(account)
 	);
@@ -90,7 +106,7 @@ it('fires once with the first connected account after connecting', async () => {
 	await fireEvent.click(view.getByRole('button', { name: /Pera/ }));
 	await waitFor(() => expect(onAccountPicked).toHaveBeenCalledTimes(1));
 	expect(onAccountPicked).toHaveBeenCalledWith({ ...a, networkId: '' });
-	expect(connect).toHaveBeenCalledTimes(1);
+	expect(adapter.connect).toHaveBeenCalledTimes(1);
 });
 
 it.each(['dropdown', 'modal'] as const)(
@@ -103,9 +119,9 @@ it.each(['dropdown', 'modal'] as const)(
 		vi.spyOn(scope.providerStore, 'initialize').mockResolvedValue();
 		vi.spyOn(scope.registry, 'initialize').mockResolvedValue();
 		vi.spyOn(scope.registry, 'reconnectAll').mockResolvedValue(new Map());
-		vi.spyOn(scope.registry, 'getAdapter').mockReturnValue({
-			connect: vi.fn().mockResolvedValue([{ address: 'C', name: 'Account C' }])
-		} as ReturnType<typeof scope.registry.getAdapter>);
+		vi.spyOn(scope.registry, 'getAdapter').mockReturnValue(
+			fakeAdapter([{ address: 'C', name: 'Account C' }])
+		);
 		scope.walletStore.addAccounts([a, b]);
 		const view = render(Web3Wallet, {
 			props: { scope: scope.scopeId, algodClient: {} as Algodv2, displayMode, onAccountPicked }
