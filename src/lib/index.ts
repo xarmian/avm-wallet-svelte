@@ -104,41 +104,5 @@ export type {
 	SessionStateHandler
 } from './adapters/index.js';
 
-// =============================================================================
-// LEGACY API (v1) - Deprecated, will be removed in v3
-// =============================================================================
-
-// Legacy component export (deprecated - use Web3Wallet instead)
-export { default as Web3WalletLegacy } from './Web3Wallet.svelte';
-
-// Legacy store exports (deprecated - use walletStore instead)
-export {
-	selectedWallet,
-	connectedWallets,
-	setOnAddHandler,
-	setOnAuthHandler,
-	showWalletList
-} from './store.js';
-
-// Legacy wallet functions (deprecated - use adapters instead)
-export {
-	getSelectedWalletToken,
-	signAndSendTransactions,
-	signTransactions,
-	Wallets as WalletOptions,
-	verifyToken
-} from './wallets.js';
-
-// Legacy types
-export type { WalletConnectionResult } from './wallets.js';
-export type { AVMWalletStore, SelectedWalletStore } from './store.js';
-
-// Legacy utilities
-export { authenticateSelectedWallet } from './utils.js';
-
-// Legacy WalletConnect functions
-export {
-	clearSessions as clearWalletConnectSessions,
-	forceReconnect as forceWalletConnectReconnect,
-	debugWalletConnectState
-} from './walletconnect.js';
+export { verifyToken } from './verify.js';
+export { signTransactions, signAndSendTransactions } from './default-signing.js';
