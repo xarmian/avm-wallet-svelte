@@ -4,6 +4,12 @@ import type { WalletScope } from './state/scope.svelte.js';
 
 export type TransactionSigner = Readonly<{ address: string; walletId: WalletId }>;
 export type SignOptions = Readonly<{ message?: string }>;
+export type SubmissionGroupState = 'confirmed' | 'submitted-unconfirmed' | 'not-sent';
+export type SubmissionGroupStatus = Readonly<{
+	index: number;
+	txIds: readonly string[];
+	state: SubmissionGroupState;
+}>;
 export const SIGNER_API_VERSION = 1 as const;
 
 export class SignerDisconnectedError extends Error {
@@ -59,6 +65,26 @@ export class SignerResultMismatchError extends Error {
 	) {
 		super(
 			`Wallet ${walletId} returned an unexpected signed transaction at position ${index} for account ${address}.`
+		);
+		Object.setPrototypeOf(this, new.target.prototype);
+	}
+}
+
+/**
+ * A retry must re-check every submitted-unconfirmed txId on chain before re-signing,
+ * because that group may still land.
+ */
+export class SignerSubmissionError extends Error {
+	readonly name = 'SignerSubmissionError';
+	readonly code = 'SIGNER_SUBMISSION_FAILED';
+
+	constructor(
+		readonly groupIndex: number,
+		readonly groups: readonly SubmissionGroupStatus[],
+		readonly cause: unknown
+	) {
+		super(
+			`Submission failed at group ${groupIndex}: ${cause instanceof Error ? cause.message : String(cause)}`
 		);
 		Object.setPrototypeOf(this, new.target.prototype);
 	}
@@ -188,15 +214,30 @@ export function createSigning(
 		async signAndSendTransactions(groups, signer, options) {
 			const { signed, algod, snapshot } = await resolve(groups, signer, options, true);
 			const txIds: string[] = [];
+			const statuses: SubmissionGroupStatus[] = snapshot.map((_group, index) => ({
+				index,
+				txIds: [],
+				state: 'not-sent'
+			}));
 			let confirmedRound = 0n;
 			let offset = 0;
-			for (const group of snapshot) {
+			for (const [groupIndex, group] of snapshot.entries()) {
 				const blobs = signed.slice(offset, offset + group.length);
 				offset += group.length;
-				const { txid } = await algod!.sendRawTransaction(blobs).do();
-				const confirmation = await algosdk.waitForConfirmation(algod!, txid, 4);
-				txIds.push(txid);
-				confirmedRound = confirmation.confirmedRound ?? confirmedRound;
+				try {
+					const { txid } = await algod!.sendRawTransaction(blobs).do();
+					statuses[groupIndex] = {
+						index: groupIndex,
+						txIds: [txid],
+						state: 'submitted-unconfirmed'
+					};
+					const confirmation = await algosdk.waitForConfirmation(algod!, txid, 4);
+					statuses[groupIndex] = { index: groupIndex, txIds: [txid], state: 'confirmed' };
+					txIds.push(txid);
+					confirmedRound = confirmation.confirmedRound ?? confirmedRound;
+				} catch (cause) {
+					throw new SignerSubmissionError(groupIndex, statuses, cause);
+				}
 			}
 			return { txIds, confirmedRound };
 		}

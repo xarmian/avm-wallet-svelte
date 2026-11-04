@@ -131,13 +131,28 @@ against the requested transaction IDs before they are returned or submitted.
 Transactions and group boundaries are snapshotted before signing, so caller mutations
 during the wallet prompt do not change the request.
 
-The API exports four typed errors with stable `code` fields:
+The API exports five typed errors with stable `code` fields:
 
 - `SignerDisconnectedError`: the account pair or its wallet is disconnected.
 - `SignerWatchOnlyError`: the account or adapter is watch-only.
 - `SignerTransactionMismatchError`: a sender differs; includes `groupIndex` and `transactionIndex`.
 - `SignerResultMismatchError`: returned signed bytes have an unexpected count, are empty,
   or do not match; includes the flat `index` and `reason` (`count`, `empty`, or `mismatch`).
+- `SignerSubmissionError`: a group send or confirmation failed; includes the zero-based
+  `groupIndex`, the original `cause`, and `groups` with one status per requested group,
+  in order.
+
+Each `SubmissionGroupStatus` contains `index`, `txIds`, and a `SubmissionGroupState`:
+
+- `confirmed`: send and confirmation succeeded; `txIds` contains that group's txid.
+- `submitted-unconfirmed`: send succeeded but confirmation failed or timed out;
+  `txIds` contains that group's txid, which may still land.
+- `not-sent`: the group was never sent or its send call failed; `txIds` is empty.
+  Groups after the failing group have this state.
+
+A retry must re-check every `submitted-unconfirmed` txId on chain before re-signing,
+because that group may still land. Errors raised before submission keep their existing
+types and are not wrapped in `SignerSubmissionError`.
 
 Capture the signer from the account shown to the user at the moment they confirm,
 before any asynchronous work:

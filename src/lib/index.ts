@@ -46,9 +46,15 @@ export {
 	SignerDisconnectedError,
 	SignerTransactionMismatchError,
 	SignerWatchOnlyError,
-	SignerResultMismatchError
+	SignerResultMismatchError,
+	SignerSubmissionError
 } from './signing.js';
-export type { TransactionSigner, SignOptions } from './signing.js';
+export type {
+	TransactionSigner,
+	SignOptions,
+	SubmissionGroupState,
+	SubmissionGroupStatus
+} from './signing.js';
 
 // State types
 export type {
