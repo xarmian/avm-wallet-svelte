@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a Svelte 5 component library for AVM (Algorand) wallet connections. It provides a Web3Wallet component that supports multiple wallet types including Pera, Defly, Kibisis, Lute, and WalletConnect, with authentication and transaction signing capabilities.
 
-**Package version**: 2.1.0 (see `package.json`)
+**Version**: 2.0.0-alpha (complete rewrite from v1.x)
 
 ## Development Commands
 
@@ -54,9 +54,6 @@ src/lib/
 ├── styles/             # CSS theming
 │   └── theme.css       # CSS custom properties
 ├── icons/              # Wallet icons
-├── signing.ts          # Explicit signer API and typed errors
-├── default-signing.ts  # Default-scope signing aliases
-├── verify.ts           # Sign-in token verification
 └── index.ts            # Main library exports
 ```
 
@@ -153,7 +150,7 @@ CSS custom properties for theming:
 2. Wallet signs the transaction
 3. Token = base64-encoded signed transaction
 4. Stored in secure cookie with 90-day expiration
-5. Verify with the package-root `verifyToken(address, token)` using Ed25519 signature validation
+5. Verified client-side using ed25519 signature validation
 
 ## Important Notes
 
@@ -161,8 +158,8 @@ CSS custom properties for theming:
 - **Scoping**: `<Web3Wallet scope="voi">` creates isolated state per chain; omitting `scope` uses `'default'` which shares module-level singletons
 - **WalletConnect**: Requires `wcConfig` with project ID from WalletConnect Cloud. The underlying `UniversalProvider` is a shared singleton; concurrent WC sessions across scopes use topic-based session isolation.
 - **ESLint 9**: Uses flat config format (`eslint.config.js`)
-- **Tailwind 3.4**: CSS custom properties define the theme
-- **Public API**: Legacy v1 modules and exports are removed. `verifyToken` retains its behavior; package-root signing aliases require an explicit `{ address, walletId }` signer and use the default scope. Apps with multiple scopes call their own scope's signing methods.
+- **Tailwind 3.4**: CSS-first theming, will upgrade to v4 later
+- **Legacy API**: v1.x API still exported for migration (deprecated)
 
 ## File Types
 
@@ -172,8 +169,6 @@ CSS custom properties for theming:
 - `.css`: Theme and utilities
 
 ## Testing
-
-Run unit and component tests with `npm test`.
 
 Run the demo app:
 
@@ -193,6 +188,6 @@ The demo page is at `src/routes/+page.svelte`.
 
 ## Migration
 
-See [MIGRATION.md](./MIGRATION.md) for the v2.x to v3.0 API migration and the historical v1.x to v2.0 guide.
+See [MIGRATION.md](./MIGRATION.md) for upgrading from v1.x to v2.0.
 
 See [docs/THEMING.md](./docs/THEMING.md) for styling options.
