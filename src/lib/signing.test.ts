@@ -93,6 +93,19 @@ function setup(hasAlgod = true) {
 		send
 	};
 }
+class AlgodHTTPError extends Error {
+	readonly response;
+
+	constructor(status: number, message: string) {
+		const statusText = status === 400 ? 'Bad Request' : 'HTTP Error';
+		super(`Network request error. Received status ${status} (${statusText}): ${message}`);
+		this.response = {
+			status,
+			body: new TextEncoder().encode(JSON.stringify({ message })),
+			headers: { 'content-type': 'application/json' }
+		};
+	}
+}
 function noDispatch(s: ReturnType<typeof setup>) {
 	expect(s.pera.signTransactions).not.toHaveBeenCalled();
 	expect(s.defly.signTransactions).not.toHaveBeenCalled();
@@ -459,14 +472,15 @@ it('reports an unconfirmed submission without submitting a later group', async (
 	const s = setup();
 	const error = new Error('Confirmation unavailable');
 	s.algod.status.mockReturnValue({ do: vi.fn().mockRejectedValue(error) });
-	const result = s.signAndSendTransactions([[payment()], [payment(a, 2)]], signer);
+	const groups = [[payment()], [payment(a, 2)]];
+	const result = s.signAndSendTransactions(groups, signer);
 	await expect(result).rejects.toBeInstanceOf(SignerSubmissionError);
 	await expect(result).rejects.toMatchObject({
 		groupIndex: 0,
 		cause: error,
 		groups: [
-			{ index: 0, txIds: ['tx1'], state: 'submitted-unconfirmed' },
-			{ index: 1, txIds: [], state: 'not-sent' }
+			{ index: 0, txIds: groups[0].map((txn) => txn.txID()), state: 'submitted-unconfirmed' },
+			{ index: 1, txIds: groups[1].map((txn) => txn.txID()), state: 'not-sent' }
 		]
 	});
 	expect(s.algod.sendRawTransaction).toHaveBeenCalledTimes(1);
@@ -482,23 +496,27 @@ it('uses the four round confirmation limit', async () => {
 	expect(s.algod.statusAfterBlock).toHaveBeenCalledTimes(4);
 });
 
-it('reports all groups as not sent when the first send fails', async () => {
-	const s = setup();
-	const error = new Error('Submission failed');
-	s.send.mockReset().mockRejectedValue(error);
-	const result = s.signAndSendTransactions([[payment()], [payment()], [payment()]], signer);
-	await expect(result).rejects.toBeInstanceOf(SignerSubmissionError);
-	await expect(result).rejects.toMatchObject({
-		groupIndex: 0,
-		cause: error,
-		groups: [
-			{ index: 0, txIds: [], state: 'not-sent' },
-			{ index: 1, txIds: [], state: 'not-sent' },
-			{ index: 2, txIds: [], state: 'not-sent' }
-		]
-	});
-	expect(s.algod.sendRawTransaction).toHaveBeenCalledTimes(1);
-});
+it.each([
+	['algod rejection', new AlgodHTTPError(400, 'overspend (account X, data {...})'), 'not-sent'],
+	['network error', new TypeError('fetch failed'), 'submitted-unconfirmed']
+] as const)(
+	'records local txIds for every group when the first send fails: %s',
+	async (_label, cause, state) => {
+		const s = setup();
+		const groups = [[payment(), payment(a, 2)], [payment(a, 3)], [payment(a, 4), payment(a, 5)]];
+		s.send.mockReset().mockRejectedValue(cause);
+		const error = await s.signAndSendTransactions(groups, signer).catch((error) => error);
+		expect(error).toBeInstanceOf(SignerSubmissionError);
+		expect(error.groupIndex).toBe(0);
+		expect(error.cause).toBe(cause);
+		expect(error.groups).toEqual([
+			{ index: 0, txIds: groups[0].map((txn) => txn.txID()), state },
+			{ index: 1, txIds: groups[1].map((txn) => txn.txID()), state: 'not-sent' },
+			{ index: 2, txIds: groups[2].map((txn) => txn.txID()), state: 'not-sent' }
+		]);
+		expect(s.algod.sendRawTransaction).toHaveBeenCalledTimes(1);
+	}
+);
 
 it('rejects a missing algod client before signing', async () => {
 	const s = setup(false);
@@ -557,7 +575,8 @@ it('records confirmed and unsent groups when the second send fails', async () =>
 	const s = setup();
 	const cause = new Error('Node unavailable');
 	s.send.mockReset().mockResolvedValueOnce({ txid: 'tx1' }).mockRejectedValueOnce(cause);
-	const result = s.signAndSendTransactions([[payment()], [payment(a, 2)], [payment(a, 3)]], signer);
+	const groups = [[payment()], [payment(a, 2)], [payment(a, 3)]];
+	const result = s.signAndSendTransactions(groups, signer);
 	await expect(result).rejects.toBeInstanceOf(SignerSubmissionError);
 	const error = await result.catch((error) => error);
 	expect(error).toMatchObject({
@@ -566,9 +585,9 @@ it('records confirmed and unsent groups when the second send fails', async () =>
 		message: 'Submission failed at group 1: Node unavailable',
 		groupIndex: 1,
 		groups: [
-			{ index: 0, txIds: ['tx1'], state: 'confirmed' },
-			{ index: 1, txIds: [], state: 'not-sent' },
-			{ index: 2, txIds: [], state: 'not-sent' }
+			{ index: 0, txIds: groups[0].map((txn) => txn.txID()), state: 'confirmed' },
+			{ index: 1, txIds: groups[1].map((txn) => txn.txID()), state: 'submitted-unconfirmed' },
+			{ index: 2, txIds: groups[2].map((txn) => txn.txID()), state: 'not-sent' }
 		]
 	});
 	expect(error.cause).toBe(cause);
@@ -582,15 +601,16 @@ it('records the second group txId when its confirmation times out', async () => 
 		.mockReset()
 		.mockResolvedValueOnce({ confirmedRound: 11n })
 		.mockResolvedValue({ confirmedRound: 0n });
-	const result = s.signAndSendTransactions([[payment()], [payment(a, 2)], [payment(a, 3)]], signer);
+	const groups = [[payment()], [payment(a, 2)], [payment(a, 3)]];
+	const result = s.signAndSendTransactions(groups, signer);
 	await expect(result).rejects.toBeInstanceOf(SignerSubmissionError);
 	const error = await result.catch((error) => error);
 	expect(error).toMatchObject({
 		groupIndex: 1,
 		groups: [
-			{ index: 0, txIds: ['tx1'], state: 'confirmed' },
-			{ index: 1, txIds: ['tx2'], state: 'submitted-unconfirmed' },
-			{ index: 2, txIds: [], state: 'not-sent' }
+			{ index: 0, txIds: groups[0].map((txn) => txn.txID()), state: 'confirmed' },
+			{ index: 1, txIds: groups[1].map((txn) => txn.txID()), state: 'submitted-unconfirmed' },
+			{ index: 2, txIds: groups[2].map((txn) => txn.txID()), state: 'not-sent' }
 		]
 	});
 	expect(error.cause).toBeInstanceOf(Error);
@@ -602,13 +622,16 @@ it('records the second group txId when its confirmation times out', async () => 
 it('preserves a non-Error submission cause and includes it in the message', async () => {
 	const s = setup();
 	s.send.mockReset().mockRejectedValue('Node refused submission');
-	const result = s.signAndSendTransactions([[payment()]], signer);
+	const groups = [[payment()]];
+	const result = s.signAndSendTransactions(groups, signer);
 	await expect(result).rejects.toBeInstanceOf(SignerSubmissionError);
 	await expect(result).rejects.toMatchObject({
 		cause: 'Node refused submission',
 		message: 'Submission failed at group 0: Node refused submission',
 		groupIndex: 0,
-		groups: [{ index: 0, txIds: [], state: 'not-sent' }]
+		groups: [
+			{ index: 0, txIds: groups[0].map((txn) => txn.txID()), state: 'submitted-unconfirmed' }
+		]
 	});
 });
 
@@ -619,4 +642,64 @@ it('preserves validation errors before submission', async () => {
 	await expect(result).rejects.not.toBeInstanceOf(SignerSubmissionError);
 	expect(s.algod.sendRawTransaction).not.toHaveBeenCalled();
 	noDispatch(s);
+});
+
+describe('classifies a rejected second send', () => {
+	async function checkFailure(cause: unknown, state: 'not-sent' | 'submitted-unconfirmed') {
+		const s = setup();
+		const groups = [
+			[payment(), payment(a, 2)],
+			[payment(a, 3), payment(a, 4)],
+			[payment(a, 5), payment(a, 6)]
+		];
+		s.send.mockReset().mockResolvedValueOnce({ txid: 'tx1' }).mockRejectedValueOnce(cause);
+		const error = await s.signAndSendTransactions(groups, signer).catch((error) => error);
+		expect(error).toBeInstanceOf(SignerSubmissionError);
+		expect(error.groupIndex).toBe(1);
+		expect(error.cause).toBe(cause);
+		expect(error.groups).toEqual([
+			{ index: 0, txIds: groups[0].map((txn) => txn.txID()), state: 'confirmed' },
+			{ index: 1, txIds: groups[1].map((txn) => txn.txID()), state },
+			{ index: 2, txIds: groups[2].map((txn) => txn.txID()), state: 'not-sent' }
+		]);
+		expect(s.algod.sendRawTransaction).toHaveBeenCalledTimes(2);
+		expect(s.send).toHaveBeenCalledTimes(2);
+		expect(s.algod.pendingTransactionInformation.mock.calls).toEqual([['tx1']]);
+	}
+
+	it.each([
+		['network error', new TypeError('fetch failed')],
+		['HTTP 503', new AlgodHTTPError(503, 'overspend')],
+		['already in ledger', new AlgodHTTPError(400, 'transaction already in ledger')],
+		['unrecognised message', new AlgodHTTPError(400, 'request could not be processed')],
+		['rejection and already known', new AlgodHTTPError(400, 'overspend: already in ledger')],
+		['non-Error string', 'Node refused submission'],
+		['object without response', { message: 'overspend' }],
+		['Error without response', new Error('overspend')],
+		['non-Error with response', { message: 'overspend', response: { status: 400 } }],
+		['non-numeric status', Object.assign(new Error('overspend'), { response: { status: '400' } })],
+		['in pool', new AlgodHTTPError(400, 'transaction in pool')],
+		['already known', new AlgodHTTPError(400, 'ALREADY received: invalid signature')]
+	])('keeps an ambiguous send submitted-unconfirmed: %s', async (_label, cause) => {
+		await checkFailure(cause, 'submitted-unconfirmed');
+	});
+
+	it.each([401, 403, 404, 408, 429])('keeps HTTP %i submitted-unconfirmed', async (status) => {
+		await checkFailure(new AlgodHTTPError(status, 'overspend'), 'submitted-unconfirmed');
+	});
+
+	it.each([
+		'overspend (account X, data {...})',
+		'bad signature',
+		'invalid signature',
+		'missing signature',
+		'malformed signature',
+		'txn dead',
+		'outside of valid rounds',
+		'fee below min',
+		'fee too small',
+		'MALFORMED transaction'
+	])('records an algod HTTP 400 transaction rejection as not-sent: %s', async (message) => {
+		await checkFailure(new AlgodHTTPError(400, message), 'not-sent');
+	});
 });
