@@ -151,8 +151,9 @@ send, including groups never attempted. All of these IDs can be looked up on cha
   failure or timeout, a send that errored without an algod rejection, and a 400
   "already in ledger" response.
 - `not-sent`: the group was never attempted or algod definitely rejected the
-  transaction itself with an HTTP 400 response. Groups after the failing group have
-  this state.
+  transaction itself with an HTTP 400 response. This describes this call only: if an
+  earlier attempt sent the same signed transactions, they may already be on chain, so
+  check the `txIds` before re-signing. Groups after the failing group have this state.
 
 A retry must re-check on chain every txId of every `submitted-unconfirmed` group
 before re-signing, because that group may have landed. The successful return value

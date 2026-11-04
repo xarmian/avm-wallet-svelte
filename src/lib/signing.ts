@@ -76,7 +76,8 @@ export class SignerResultMismatchError extends Error {
  * before re-signing, because that group may have landed. This includes a send
  * that errored without an algod rejection and a 400 "already in ledger" response.
  * A not-sent group was never attempted or algod definitely rejected the
- * transaction itself.
+ * transaction itself on this call only: if an earlier attempt sent the same signed
+ * transactions, they may already be on chain, so check the txIds before re-signing.
  */
 export class SignerSubmissionError extends Error {
 	readonly name = 'SignerSubmissionError';
@@ -107,9 +108,7 @@ function classifySendFailure(cause: unknown): SubmissionGroupState {
 	) {
 		return 'submitted-unconfirmed';
 	}
-	return /overspend|signature|txn dead|outside of|below min|fee too small|malformed/i.test(
-		cause.message
-	)
+	return /overspend|signature|txn dead|outside of|below min|fee too small/i.test(cause.message)
 		? 'not-sent'
 		: 'submitted-unconfirmed';
 }

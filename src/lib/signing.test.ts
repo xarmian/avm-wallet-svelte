@@ -679,7 +679,10 @@ describe('classifies a rejected second send', () => {
 		['non-Error with response', { message: 'overspend', response: { status: 400 } }],
 		['non-numeric status', Object.assign(new Error('overspend'), { response: { status: '400' } })],
 		['in pool', new AlgodHTTPError(400, 'transaction in pool')],
-		['already known', new AlgodHTTPError(400, 'ALREADY received: invalid signature')]
+		['already known', new AlgodHTTPError(400, 'ALREADY received: invalid signature')],
+		['400 with no rejection pattern', new AlgodHTTPError(400, 'something else went wrong')],
+		['HTTP-level malformed 400', new AlgodHTTPError(400, 'malformed request body')],
+		['bare MALFORMED 400', new AlgodHTTPError(400, 'MALFORMED transaction')]
 	])('keeps an ambiguous send submitted-unconfirmed: %s', async (_label, cause) => {
 		await checkFailure(cause, 'submitted-unconfirmed');
 	});
@@ -697,8 +700,7 @@ describe('classifies a rejected second send', () => {
 		'txn dead',
 		'outside of valid rounds',
 		'fee below min',
-		'fee too small',
-		'MALFORMED transaction'
+		'fee too small'
 	])('records an algod HTTP 400 transaction rejection as not-sent: %s', async (message) => {
 		await checkFailure(new AlgodHTTPError(400, message), 'not-sent');
 	});
