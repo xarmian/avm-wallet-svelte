@@ -128,6 +128,8 @@ account and wallet pair must be connected in that scope. Every outer transaction
 must have the signer's address as its sender, including every transaction in a
 group. Mixed-sender groups are rejected before signing. Signed results are checked
 against the requested transaction IDs before they are returned or submitted.
+Transactions and group boundaries are snapshotted before signing, so caller mutations
+during the wallet prompt do not change the request.
 
 The API exports four typed errors with stable `code` fields:
 

@@ -117,6 +117,20 @@ export function createSigning(
 			throw new TypeError('At least one transaction is required.');
 		}
 
+		let snapshot: algosdk.Transaction[][];
+		let txIds: string[];
+		try {
+			snapshot = groups.map((group) =>
+				Array.from(group, (txn) => {
+					if (!(txn instanceof algosdk.Transaction)) throw new TypeError();
+					return algosdk.decodeUnsignedTransaction(algosdk.encodeUnsignedTransaction(txn));
+				})
+			);
+			txIds = snapshot.flat().map((txn) => txn.txID());
+		} catch {
+			throw new TypeError('Invalid transaction in signing request.');
+		}
+
 		const algod = submit ? scope.providerStore.algodClient : null;
 		if (submit && !algod) throw new Error('Algod client not available');
 
@@ -131,7 +145,7 @@ export function createSigning(
 			throw new SignerWatchOnlyError(address, walletId);
 		}
 
-		for (const [groupIndex, group] of groups.entries()) {
+		for (const [groupIndex, group] of snapshot.entries()) {
 			for (const [transactionIndex, txn] of group.entries()) {
 				const sender = algosdk.encodeAddress(txn.sender.publicKey);
 				if (sender !== address) {
@@ -140,24 +154,23 @@ export function createSigning(
 			}
 		}
 
-		const signed = await adapter.signTransactions(groups, { message: options?.message });
-		const transactions = groups.flat();
-		if (signed.length !== transactions.length) {
+		const signed = await adapter.signTransactions(snapshot, { message: options?.message });
+		if (signed.length !== txIds.length) {
 			throw new SignerResultMismatchError(
 				address,
 				walletId,
-				Math.min(signed.length, transactions.length),
+				Math.min(signed.length, txIds.length),
 				'count'
 			);
 		}
-		for (const [index, txn] of transactions.entries()) {
+		for (const [index, txId] of txIds.entries()) {
 			const blob = signed[index];
 			if (!blob || blob.length === 0) {
 				throw new SignerResultMismatchError(address, walletId, index, 'empty');
 			}
 			let matches = false;
 			try {
-				matches = algosdk.decodeSignedTransaction(blob).txn.txID() === txn.txID();
+				matches = algosdk.decodeSignedTransaction(blob).txn.txID() === txId;
 			} catch {
 				// Undecodable results cannot be matched to the requested transaction.
 			}
@@ -165,7 +178,7 @@ export function createSigning(
 				throw new SignerResultMismatchError(address, walletId, index, 'mismatch');
 			}
 		}
-		return { signed, algod };
+		return { signed, algod, snapshot };
 	}
 
 	return {
@@ -173,11 +186,11 @@ export function createSigning(
 			return (await resolve(groups, signer, options)).signed;
 		},
 		async signAndSendTransactions(groups, signer, options) {
-			const { signed, algod } = await resolve(groups, signer, options, true);
+			const { signed, algod, snapshot } = await resolve(groups, signer, options, true);
 			const txIds: string[] = [];
 			let confirmedRound = 0n;
 			let offset = 0;
-			for (const group of groups) {
+			for (const group of snapshot) {
 				const blobs = signed.slice(offset, offset + group.length);
 				offset += group.length;
 				const { txid } = await algod!.sendRawTransaction(blobs).do();

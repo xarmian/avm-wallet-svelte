@@ -246,6 +246,72 @@ for (const method of ['signTransactions', 'signAndSendTransactions'] as const) {
 			noDispatch(s);
 		});
 
+		it.each([{}, null])('rejects a non-Transaction entry: %s', async (entry) => {
+			const s = setup();
+			const result = s[method]([[entry]] as unknown as algosdk.Transaction[][], signer);
+			await expect(result).rejects.toThrow(
+				new TypeError('Invalid transaction in signing request.')
+			);
+			noDispatch(s);
+		});
+
+		it('rejects a transaction that cannot round trip through unsigned encoding', async () => {
+			const s = setup();
+			const txn = payment();
+			txn.group = new Uint8Array(1);
+			await expect(s[method]([[txn]], signer)).rejects.toThrow(
+				new TypeError('Invalid transaction in signing request.')
+			);
+			noDispatch(s);
+		});
+
+		it('signs the original content when the caller transaction changes during signing', async () => {
+			const s = setup();
+			const txn = payment();
+			const txId = txn.txID();
+			const blob = txn.signTxn(a.sk);
+			s.pera.signTransactions.mockImplementation(async () => {
+				await Promise.resolve();
+				(txn as { sender: algosdk.Address }).sender = b.addr;
+				return [blob];
+			});
+			await s[method]([[txn]], signer);
+			const received = s.pera.signTransactions.mock.calls[0][0][0][0];
+			expect(received).not.toBe(txn);
+			expect(received.sender.toString()).toBe(address);
+			expect(received.txID()).toBe(txId);
+		});
+
+		it('rejects signed content matching a caller mutation after dispatch', async () => {
+			const s = setup();
+			const txn = payment();
+			s.pera.signTransactions.mockImplementation(async () => {
+				await Promise.resolve();
+				(txn as { sender: algosdk.Address }).sender = b.addr;
+				return [txn.signTxn(b.sk)];
+			});
+			const result = s[method]([[txn]], signer);
+			await expect(result).rejects.toBeInstanceOf(SignerResultMismatchError);
+			await expect(result).rejects.toMatchObject({ reason: 'mismatch', index: 0 });
+			expect(s.algod.sendRawTransaction).not.toHaveBeenCalled();
+		});
+
+		it('preserves group IDs and transaction IDs in the dispatched snapshot', async () => {
+			const s = setup();
+			const group = algosdk.assignGroupID([payment(), payment(a, 2)]);
+			const txIds = group.map((txn) => txn.txID());
+			const groupId = group[0].group!.slice();
+			await s[method]([group], signer);
+			const received = s.pera.signTransactions.mock.calls[0][0][0];
+			expect(received).not.toBe(group);
+			for (const [index, txn] of received.entries()) {
+				expect(txn).not.toBe(group[index]);
+				expect(txn.group).toEqual(groupId);
+				expect(txn.group).not.toBe(group[index].group);
+				expect(txn.txID()).toBe(txIds[index]);
+			}
+		});
+
 		it('passes only the message option to the explicit signer adapter', async () => {
 			const s = setup();
 			const groups = [[payment()]];
@@ -255,7 +321,10 @@ for (const method of ['signTransactions', 'signAndSendTransactions'] as const) {
 				walletId: 'defly',
 				address: 'B'
 			} as { message: string });
-			expect(s.pera.signTransactions).toHaveBeenCalledWith(groups, { message: 'm' });
+			expect(s.pera.signTransactions).toHaveBeenCalledWith([[expect.any(algosdk.Transaction)]], {
+				message: 'm'
+			});
+			expect(s.pera.signTransactions.mock.calls[0][0][0][0].txID()).toBe(groups[0][0].txID());
 			expect(s.defly.signTransactions).not.toHaveBeenCalled();
 		});
 
@@ -318,7 +387,10 @@ for (const method of ['signTransactions', 'signAndSendTransactions'] as const) {
 			mutable.address = b.addr.toString();
 			mutable.walletId = 'defly';
 			expect(s.getAdapter).toHaveBeenCalledWith('pera');
-			expect(s.pera.signTransactions).toHaveBeenCalledWith([[txn]], { message: undefined });
+			expect(s.pera.signTransactions).toHaveBeenCalledWith([[expect.any(algosdk.Transaction)]], {
+				message: undefined
+			});
+			expect(s.pera.signTransactions.mock.calls[0][0][0][0].txID()).toBe(txn.txID());
 			expect(s.defly.signTransactions).not.toHaveBeenCalled();
 			resolve([new Uint8Array()]);
 			await expect(result).rejects.toMatchObject({ address, walletId: 'pera', reason: 'empty' });
@@ -414,3 +486,39 @@ it.each(['default', 'signing-scope-functions'])(
 		expect(scope.signAndSendTransactions).toBeTypeOf('function');
 	}
 );
+
+it('dispatches and submits the original group shape when caller arrays change', async () => {
+	const s = setup();
+	const groups = [[payment(), payment(a, 2)], [payment(a, 3)]];
+	const txIds = groups.flat().map((txn) => txn.txID());
+	const blobs = groups.flat().map((txn) => txn.signTxn(a.sk));
+	s.pera.signTransactions.mockImplementation(async (received) => {
+		await Promise.resolve();
+		return received.flat().map((txn) => txn.signTxn(a.sk));
+	});
+	const result = s.signAndSendTransactions(groups, signer);
+	groups[0] = [payment(a, 4)];
+	groups.push([payment(a, 5)]);
+	await expect(result).resolves.toEqual({ txIds: ['tx1', 'tx2'], confirmedRound: 12n });
+	const received = s.pera.signTransactions.mock.calls[0][0];
+	expect(received.map((group) => group.length)).toEqual([2, 1]);
+	expect(received.flat().map((txn) => txn.txID())).toEqual(txIds);
+	expect(s.algod.sendRawTransaction.mock.calls).toEqual([[blobs.slice(0, 2)], [blobs.slice(2)]]);
+});
+
+it('submits verified blobs per original group when caller transactions change during signing', async () => {
+	const s = setup();
+	const groups = [[payment(), payment(a, 2)], [payment(a, 3)]];
+	const txIds = groups.flat().map((txn) => txn.txID());
+	const blobs = groups.flat().map((txn) => txn.signTxn(a.sk));
+	s.pera.signTransactions.mockImplementation(async () => {
+		await Promise.resolve();
+		for (const txn of groups.flat()) (txn as { sender: algosdk.Address }).sender = b.addr;
+		return blobs;
+	});
+	await s.signAndSendTransactions(groups, signer);
+	const received = s.pera.signTransactions.mock.calls[0][0];
+	expect(received.flat().map((txn) => txn.sender.toString())).toEqual([address, address, address]);
+	expect(received.flat().map((txn) => txn.txID())).toEqual(txIds);
+	expect(s.algod.sendRawTransaction.mock.calls).toEqual([[blobs.slice(0, 2)], [blobs.slice(2)]]);
+});
