@@ -148,7 +148,8 @@ export function createSigning(
 		try {
 			snapshot = groups.map((group) =>
 				Array.from(group, (txn) => {
-					if (!(txn instanceof algosdk.Transaction)) throw new TypeError();
+					// No instanceof check: a transaction built by another copy of algosdk is a valid
+					// request, and decoding rejects anything that is not a well-formed transaction.
 					return algosdk.decodeUnsignedTransaction(algosdk.encodeUnsignedTransaction(txn));
 				})
 			);

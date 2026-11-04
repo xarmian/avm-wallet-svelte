@@ -256,6 +256,18 @@ for (const method of ['signTransactions', 'signAndSendTransactions'] as const) {
 			noDispatch(s);
 		});
 
+		it('accepts a transaction built by another copy of algosdk', async () => {
+			const s = setup();
+			const txn = payment();
+			const foreign = {
+				getEncodingSchema: () => txn.getEncodingSchema(),
+				toEncodingData: () => txn.toEncodingData()
+			} as unknown as algosdk.Transaction;
+			expect(foreign instanceof algosdk.Transaction).toBe(false);
+			await expect(s[method]([[foreign]], signer)).resolves.toBeDefined();
+			expect(s.pera.signTransactions).toHaveBeenCalledTimes(1);
+		});
+
 		it('rejects a transaction that cannot round trip through unsigned encoding', async () => {
 			const s = setup();
 			const txn = payment();
