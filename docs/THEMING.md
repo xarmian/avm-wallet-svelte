@@ -1,16 +1,14 @@
 # Theming Guide
 
-AVM Wallet v2.0 uses CSS custom properties (CSS variables) for theming. This allows you to fully customize the appearance of wallet components to match your application's design.
+AVM Wallet uses CSS custom properties (CSS variables) for theming. This allows you to fully customize the appearance of wallet components to match your application's design.
 
 ## Quick Start
 
-1. Import the theme CSS file in your application:
+`Web3Wallet` automatically imports the default light and dark tokens, including in
+SvelteKit production builds and SSR. No separate CSS import is required. Existing
+imports of `avm-wallet-svelte/styles/theme.css` remain supported and are optional.
 
-```css
-@import 'avm-wallet-svelte/styles/theme.css';
-```
-
-2. Override the CSS custom properties you want to change:
+Override the CSS custom properties you want to change:
 
 ```css
 :root {
@@ -19,13 +17,25 @@ AVM Wallet v2.0 uses CSS custom properties (CSS variables) for theming. This all
 }
 ```
 
+Defaults use `:where(:root)` and `:where(.dark, [data-theme='dark'])`, which have
+zero specificity. Your ordinary `:root` rule wins on the root element regardless
+of stylesheet load order, including when dark mode is set on that element.
+For a nested dark container, override tokens on that container (for example,
+`.dark { --avm-color-primary: 165 180 252; }`); declarations on descendants take
+precedence over inherited root values. Defaults are never placed on the widget itself.
+
+The dropdown uses `dropdownAlign="auto"` by default: after opening in the browser,
+it chooses end alignment only when start would overflow right and end fits.
+`dropdownAlign="start"` keeps the original alignment; `dropdownAlign="end"` forces
+right alignment. Automatic alignment starts at `start` during SSR.
+
 ## Color Format
 
 Colors use space-separated RGB values without the `rgb()` function. This allows for easy opacity modifications:
 
 ```css
 :root {
-	--avm-color-primary: 59 130 246; /* blue-500 */
+	--avm-color-primary: 37 99 235; /* blue-600 */
 }
 
 /* Usage */
@@ -41,11 +51,15 @@ Colors use space-separated RGB values without the `rgb()` function. This allows 
 
 #### Primary Colors
 
-| Property                     | Default (Light)         | Description          |
-| ---------------------------- | ----------------------- | -------------------- |
-| `--avm-color-primary`        | `59 130 246` (blue-500) | Primary action color |
-| `--avm-color-primary-hover`  | `37 99 235` (blue-600)  | Primary hover state  |
-| `--avm-color-primary-active` | `29 78 216` (blue-700)  | Primary active state |
+| Property                     | Default (Light)        | Description          |
+| ---------------------------- | ---------------------- | -------------------- |
+| `--avm-color-primary`        | `37 99 235` (blue-600) | Primary action color |
+| `--avm-color-primary-hover`  | `29 78 216` (blue-700) | Primary hover state  |
+| `--avm-color-primary-active` | `30 64 175` (blue-800) | Primary active state |
+
+`--avm-color-on-primary` is `255 255 255` in light mode and `23 23 23` in dark
+mode. Primary-filled controls use it for text; `--avm-text-inverse` remains available
+for existing themes.
 
 #### Secondary Colors
 
@@ -167,6 +181,23 @@ The theme includes built-in dark mode support. Add the `dark` class or `data-the
 | `--avm-text-primary`  | `249 250 251` (gray-50) |
 | `--avm-border-color`  | `75 85 99` (gray-600)   |
 
+## Contrast
+
+Default primary-filled buttons meet WCAG 2.2 AA's 4.5:1 normal-text contrast
+threshold in both themes, including hover and active token values. Light primary
+also exceeds 4.5:1 as text on `--avm-bg-primary` (and 3:1 as a border).
+When customizing a primary color, check `--avm-color-on-primary` against all three
+primary states as well as primary text against the panel background. Dark primary
+is intentionally lighter for text on dark panels, so its button text is dark.
+
+This is not a claim that every default pair meets AA. Existing muted text, success
+and error text, and some UI indicators/borders fall below their applicable thresholds.
+The explicit `knownBelowAA` list in `src/lib/styles/contrast.test.ts` records each
+pair and measured ratio; the guard covers component foregrounds, inherited hover
+and selected surfaces, and alpha-composited backgrounds. Disabled controls are
+exempt under WCAG and are not audited with their disabled opacity.
+See [WCAG 2.2 contrast requirements](https://www.w3.org/TR/WCAG22/#contrast-minimum).
+
 ## Example Themes
 
 ### Purple Theme
@@ -218,7 +249,7 @@ The theme integrates well with Tailwind CSS:
 @tailwind components;
 @tailwind utilities;
 
-/* Import after Tailwind */
+/* Optional: Web3Wallet already imports these defaults */
 @import 'avm-wallet-svelte/styles/theme.css';
 
 /* Use Tailwind colors */
@@ -253,4 +284,5 @@ CSS custom properties are supported in all modern browsers:
 - Safari 9.1+
 - Edge 15+
 
-For older browsers, the theme will fall back to the default values defined in the theme file.
+Automatic defaults also require `:where()` support.
+Browsers without CSS custom properties or `:where()` do not receive these defaults.

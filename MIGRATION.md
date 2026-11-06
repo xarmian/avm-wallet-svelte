@@ -1,5 +1,7 @@
 # Migrating from v2.x to v3.0
 
+`Web3Wallet` includes its default theme automatically; the theme CSS import is no longer required.
+
 The legacy v1 API is removed in v3.0. Use the v2 components, reactive state and
 explicit signer API. The table covers the former legacy export section; the
 three retained function names are listed with their current behavior.

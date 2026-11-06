@@ -70,6 +70,24 @@ to show only Pera and Kibisis:
 <Web3Wallet {algodClient} enabledWallets={['pera', 'kibisis']} />
 ```
 
+### Styling
+
+`Web3Wallet` includes its default styles automatically; there is nothing extra to import.
+Override tokens in your application CSS:
+
+```css
+:root {
+	--avm-color-primary: 79 70 229;
+	--avm-radius-md: 0.75rem;
+}
+```
+
+Dark mode follows `.dark` or `[data-theme='dark']`. The optional
+`dropdownAlign="auto"` (default) aligns the dropdown to the end when needed to fit;
+use `"start"` or `"end"` to choose explicitly. The existing
+`avm-wallet-svelte/styles/theme.css` import still works.
+See the [Theming Guide](./docs/THEMING.md) for tokens, overrides and contrast guidance.
+
 ### Watched Accounts
 
 Watched accounts are accounts that are not authenticated but are connected to the wallet.
