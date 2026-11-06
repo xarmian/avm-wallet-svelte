@@ -110,7 +110,12 @@ for (const file of readdirSync('src/lib/components').filter((name) => name.endsW
 			add(color(node.value), 'bg-primary', 3, `${file}: ${rule.selector} outer border`);
 		}
 		if (rule.selector === '.account-row__radio-dot')
-			add('white', 'color-primary', 3, `${file}: selected radio dot`);
+			add(
+				backgroundValue?.includes('--avm-color-on-primary') ? 'color-on-primary' : 'white',
+				'color-primary',
+				3,
+				`${file}: selected radio dot`
+			);
 	});
 }
 // All current text is below WCAG's large-text size (18pt, or 14pt bold).
@@ -153,8 +158,7 @@ const knownBelowAA: Record<string, number> = {
 	'dark text-tertiary / bg-hover [text]': 3.19,
 	'dark text-tertiary / color-primary@0.08 [text]': 3.36,
 	'dark text-tertiary / color-primary@0.12 [text]': 3.14,
-	'dark border-color / bg-secondary [UI]': 1.46,
-	'dark white / color-primary [UI]': 2.54
+	'dark border-color / bg-secondary [UI]': 1.46
 };
 
 for (const [mode, tokens] of Object.entries(themes)) {

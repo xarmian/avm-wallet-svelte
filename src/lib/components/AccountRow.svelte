@@ -159,7 +159,7 @@
 	.account-row__radio-dot {
 		width: 6px;
 		height: 6px;
-		background-color: white;
+		background-color: rgb(var(--avm-color-on-primary));
 		border-radius: 50%;
 	}
 

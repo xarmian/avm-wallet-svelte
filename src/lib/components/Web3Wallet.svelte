@@ -453,7 +453,7 @@
 		top: calc(100% + 4px);
 		left: 0;
 		min-width: min(280px, calc(100vw - 1rem));
-		max-width: calc(100vw - 1rem);
+		max-width: min(360px, calc(100vw - 1rem));
 		background-color: rgb(var(--avm-bg-primary));
 		border: 1px solid rgb(var(--avm-border-color));
 		border-radius: var(--avm-radius-lg);
