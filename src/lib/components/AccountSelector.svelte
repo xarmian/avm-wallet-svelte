@@ -273,7 +273,7 @@
 		border-radius: var(--avm-radius-md);
 		font-size: var(--avm-font-size-sm);
 		font-weight: var(--avm-font-weight-medium);
-		color: rgb(var(--avm-text-inverse));
+		color: rgb(var(--avm-color-on-primary));
 		cursor: pointer;
 		transition: all var(--avm-transition-fast);
 	}

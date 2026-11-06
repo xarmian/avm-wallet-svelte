@@ -220,7 +220,7 @@
 
 	.account-row__action--signin {
 		background-color: rgb(var(--avm-color-primary));
-		color: white;
+		color: rgb(var(--avm-color-on-primary));
 	}
 
 	.account-row__action--signin:hover:not(:disabled) {
