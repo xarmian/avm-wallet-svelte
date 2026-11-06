@@ -202,7 +202,7 @@
 	.avm-auth-modal-button {
 		padding: var(--avm-spacing-sm) var(--avm-spacing-md);
 		background-color: rgb(var(--avm-color-primary));
-		color: rgb(var(--avm-text-inverse));
+		color: rgb(var(--avm-color-on-primary));
 		font-size: var(--avm-font-size-sm);
 		font-weight: var(--avm-font-weight-medium);
 		border: none;

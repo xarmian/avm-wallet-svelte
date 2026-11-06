@@ -9,13 +9,14 @@
  * background-color: rgb(var(--avm-color-primary) / 0.5);
  */
 
-:root {
+:where(:root) {
 	/* ==================== Colors ==================== */
 
 	/* Primary action color (buttons, links) */
-	--avm-color-primary: 59 130 246; /* blue-500 */
-	--avm-color-primary-hover: 37 99 235; /* blue-600 */
-	--avm-color-primary-active: 29 78 216; /* blue-700 */
+	--avm-color-primary: 37 99 235; /* blue-600 */
+	--avm-color-primary-hover: 29 78 216; /* blue-700 */
+	--avm-color-primary-active: 30 64 175; /* blue-800 */
+	--avm-color-on-primary: 255 255 255; /* white text on primary fills */
 
 	/* Secondary color */
 	--avm-color-secondary: 115 115 115; /* neutral-500 */
@@ -140,11 +141,11 @@
 
 /* ==================== Dark Mode ==================== */
 
-.dark,
-[data-theme='dark'] {
+:where(.dark, [data-theme='dark']) {
 	--avm-color-primary: 96 165 250; /* blue-400 */
 	--avm-color-primary-hover: 147 197 253; /* blue-300 */
 	--avm-color-primary-active: 191 219 254; /* blue-200 */
+	--avm-color-on-primary: 23 23 23; /* neutral-900 text on primary fills */
 
 	--avm-color-secondary: 163 163 163; /* neutral-400 */
 	--avm-color-secondary-hover: 212 212 212; /* neutral-300 */

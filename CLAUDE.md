@@ -125,16 +125,23 @@ Svelte 5 components using `$props()` and `$state()`. Child components read the a
 
 #### 4. Styling (`src/lib/styles/`)
 
-CSS custom properties for theming:
+`Web3Wallet` imports `styles/theme.css` automatically; the package CSS export remains
+available as an optional import. Default tokens use zero-specificity `:where(:root)`
+and `:where(.dark, [data-theme='dark'])` selectors. Ordinary application rules override
+them on the same element regardless of load order; no defaults are set on the widget.
 
 ```css
 :root {
-	--avm-color-primary: 59 130 246;
-	--avm-bg-primary: 255 255 255;
-	--avm-text-primary: 17 24 39;
+	--avm-color-primary: 37 99 235;
+	--avm-color-on-primary: 255 255 255;
 	/* ... */
 }
 ```
+
+Dark mode uses a lighter primary and dark `--avm-color-on-primary` text for contrast.
+Primary-filled controls must use this token rather than `--avm-text-inverse`, which
+remains available for compatibility. See `docs/THEMING.md` for overrides and known
+contrast findings in `src/lib/styles/contrast.test.ts`.
 
 ### Key Features
 

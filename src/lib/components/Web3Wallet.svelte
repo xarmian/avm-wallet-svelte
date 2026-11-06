@@ -1,4 +1,5 @@
 <script lang="ts">
+	import '../styles/theme.css';
 	import type { Algodv2, Indexer } from 'algosdk';
 	import type { Snippet } from 'svelte';
 	import type { WalletId, WalletConnectConfig } from '../adapters/types.js';
@@ -19,6 +20,7 @@
 	import AddAccountView from './AddAccountView.svelte';
 	import AuthModal from './AuthModal.svelte';
 	import WalletConnectModal from './WalletConnectModal.svelte';
+	import { resolveDropdownAlign } from './dropdown-align.js';
 
 	// Props interface
 	interface Props {
@@ -33,6 +35,8 @@
 		allowWatchAccounts?: boolean;
 		/** Display mode: dropdown or modal */
 		displayMode?: 'dropdown' | 'modal';
+		/** Dropdown alignment; auto measures available space when opened. */
+		dropdownAlign?: 'auto' | 'start' | 'end';
 		/** WalletConnect project configuration */
 		wcConfig?: WalletConnectConfig;
 		/** Additional CSS classes for the container */
@@ -67,6 +71,7 @@
 		enabledWallets = ['pera', 'defly', 'kibisis', 'lute', 'walletconnect', 'biatec', 'voiwallet'],
 		allowWatchAccounts = false,
 		displayMode = 'dropdown',
+		dropdownAlign = 'auto',
 		wcConfig,
 		class: className = '',
 		id,
@@ -92,6 +97,9 @@
 
 	// Local state
 	let containerRef = $state<HTMLElement | null>(null);
+	let dropdownRef = $state<HTMLElement | null>(null);
+	let autoAlignment = $state<'start' | 'end'>('start');
+	const alignment = $derived(dropdownAlign === 'auto' ? autoAlignment : dropdownAlign);
 	let initError = $state<string | null>(null);
 	let wcUnsubscribe: (() => void) | null = null;
 
@@ -99,6 +107,31 @@
 	let showList = $state(false);
 	let currentView = $state<'selector' | 'add-account'>('selector');
 	let openedViaGlobal = $state(false); // Track if opened via uiStore
+
+	// Effects run after the panel mounts, only in the browser. SSR keeps auto at start.
+	// The panel is positioned against the container (left: 0 / right: 0), so the container's rect is
+	// what decides overflow, whatever a custom trigger snippet renders inside it. Re-measured on resize
+	// while open.
+	$effect(() => {
+		if (!showList) {
+			autoAlignment = 'start';
+			return;
+		}
+		if (displayMode !== 'dropdown' || dropdownAlign !== 'auto' || !dropdownRef || !containerRef) {
+			return;
+		}
+		const measure = () => {
+			if (!dropdownRef || !containerRef) return;
+			autoAlignment = resolveDropdownAlign(
+				containerRef.getBoundingClientRect(),
+				dropdownRef.getBoundingClientRect().width,
+				document.documentElement.clientWidth || window.innerWidth
+			);
+		};
+		measure();
+		window.addEventListener('resize', measure);
+		return () => window.removeEventListener('resize', measure);
+	});
 
 	// Sync with scoped uiState for external control (e.g., uiStore.openWalletList(id))
 	// Only react if this instance is specifically targeted by id
@@ -283,7 +316,13 @@
 	<!-- Dropdown/Modal Content -->
 	{#if showList}
 		{#if displayMode === 'dropdown'}
-			<div class="avm-wallet__dropdown" role="dialog" aria-label="Account selector">
+			<div
+				bind:this={dropdownRef}
+				class="avm-wallet__dropdown"
+				class:avm-wallet__dropdown--end={alignment === 'end'}
+				role="dialog"
+				aria-label="Account selector"
+			>
 				{#if currentView === 'selector'}
 					<AccountSelector
 						{showSignInStatus}
@@ -421,14 +460,19 @@
 		position: absolute;
 		top: calc(100% + 4px);
 		left: 0;
-		min-width: 280px;
-		max-width: 360px;
+		min-width: min(280px, calc(100vw - 1rem));
+		max-width: min(360px, calc(100vw - 1rem));
 		background-color: rgb(var(--avm-bg-primary));
 		border: 1px solid rgb(var(--avm-border-color));
 		border-radius: var(--avm-radius-lg);
 		box-shadow: var(--avm-shadow-lg);
 		z-index: var(--avm-z-dropdown);
 		overflow: hidden;
+	}
+
+	.avm-wallet__dropdown--end {
+		left: auto;
+		right: 0;
 	}
 
 	/* Modal Backdrop */
