@@ -109,20 +109,28 @@
 	let openedViaGlobal = $state(false); // Track if opened via uiStore
 
 	// Effects run after the panel mounts, only in the browser. SSR keeps auto at start.
+	// The panel is positioned against the container (left: 0 / right: 0), so the container's rect is
+	// what decides overflow, whatever a custom trigger snippet renders inside it. Re-measured on resize
+	// while open.
 	$effect(() => {
 		if (!showList) {
 			autoAlignment = 'start';
 			return;
 		}
-		if (displayMode !== 'dropdown' || dropdownAlign !== 'auto' || !dropdownRef) return;
-		// The first element is the default button or the consumer's trigger snippet.
-		const triggerElement = containerRef?.firstElementChild;
-		if (!triggerElement) return;
-		autoAlignment = resolveDropdownAlign(
-			triggerElement.getBoundingClientRect(),
-			dropdownRef.getBoundingClientRect().width,
-			document.documentElement.clientWidth || window.innerWidth
-		);
+		if (displayMode !== 'dropdown' || dropdownAlign !== 'auto' || !dropdownRef || !containerRef) {
+			return;
+		}
+		const measure = () => {
+			if (!dropdownRef || !containerRef) return;
+			autoAlignment = resolveDropdownAlign(
+				containerRef.getBoundingClientRect(),
+				dropdownRef.getBoundingClientRect().width,
+				document.documentElement.clientWidth || window.innerWidth
+			);
+		};
+		measure();
+		window.addEventListener('resize', measure);
+		return () => window.removeEventListener('resize', measure);
 	});
 
 	// Sync with scoped uiState for external control (e.g., uiStore.openWalletList(id))
