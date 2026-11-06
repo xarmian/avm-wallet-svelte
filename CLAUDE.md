@@ -6,8 +6,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a Svelte 5 component library for AVM (Algorand) wallet connections. It provides a Web3Wallet component that supports multiple wallet types including Pera, Defly, Kibisis, Lute, and WalletConnect, with authentication and transaction signing capabilities.
 
-**Package version**: 3.0.0 (see `package.json`)
-
 ## Development Commands
 
 - `npm run dev` - Start development server with Vite
