@@ -49,7 +49,7 @@
 		type="button"
 		class="account-row__select"
 		onclick={onSelect}
-		aria-label={`Select account ${account.name || formatAddress(account.address)}`}
+		aria-label={`${accountMode === 'navigation' ? 'Open' : 'Select account'} ${account.name || formatAddress(account.address)}`}
 	>
 		<!-- Radio indicator -->
 		<span class="account-row__radio" class:account-row__radio--checked={isSelected}>

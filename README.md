@@ -83,7 +83,7 @@ both `address` and `walletId` against connected accounts. The default trigger sh
 that account's connected name or shortened address. If the pair is disconnected,
 omitted, or `null`, it shows **Your accounts**, with no current row. The current row
 has selected styling and `aria-current="true"`; the dialog and list are named
-**Your accounts**. Watch-only rows remain selectable and show **Watch only** in
+**Your accounts**, and each row's button is named **Open <name>**. Watch-only rows remain selectable and show **Watch only** in
 navigation mode. Selection mode's watch-only rendering is unchanged.
 
 `onAccountPicked(account)` runs once for an explicit row pick or a successful
