@@ -247,7 +247,7 @@
 	}
 
 	.avm-wc-modal-open:hover {
-		filter: brightness(0.95);
+		background-color: rgb(var(--avm-color-primary-hover));
 	}
 
 	.avm-wc-modal-copy {
