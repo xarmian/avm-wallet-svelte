@@ -145,7 +145,7 @@ it.each(['dropdown', 'modal'] as const)(
 			props: { ...props, accountMode: 'navigation', currentAccount: y, displayMode }
 		});
 		await fireEvent.click(view.getByRole('button', { name: 'Account Y' }));
-		await fireEvent.click(view.getByRole('button', { name: 'Select account Account Y' }));
+		await fireEvent.click(view.getByRole('button', { name: 'Open Account Y' }));
 		expect(props.onAccountPicked).toHaveBeenCalledTimes(1);
 		expect(props.onAccountPicked).toHaveBeenCalledWith(y);
 		expect(select).not.toHaveBeenCalled();
@@ -260,7 +260,7 @@ it('keeps row buttons focusable for keyboard activation and closes on Escape', a
 		props: { ...props, accountMode: 'navigation', currentAccount: y }
 	});
 	await fireEvent.click(view.getByRole('button', { name: 'Account Y' }));
-	const button = view.getByRole('button', { name: 'Select account Account Y' });
+	const button = view.getByRole('button', { name: 'Open Account Y' });
 	button.focus();
 	expect(document.activeElement).toBe(button);
 	expect(button.tabIndex).toBe(0);
@@ -273,4 +273,20 @@ it('keeps row buttons focusable for keyboard activation and closes on Escape', a
 	await fireEvent.keyDown(window, { key: 'Escape' });
 	expect(view.queryByRole('dialog')).toBeNull();
 	expect(props.onAccountPicked).toHaveBeenCalledTimes(1);
+});
+
+it('names navigation rows Open <name> and keeps Select account in selection mode', async () => {
+	const { props } = setup([x, y, watch]);
+	const navigation = render(Web3Wallet, {
+		props: { ...props, accountMode: 'navigation', currentAccount: y }
+	});
+	await fireEvent.click(navigation.getByRole('button', { name: 'Account Y' }));
+	expect(navigation.getByRole('button', { name: 'Open Account X' })).toBeTruthy();
+	expect(navigation.getByRole('button', { name: 'Open Account Y' })).toBeTruthy();
+	expect(navigation.getByRole('button', { name: 'Open Watched account' })).toBeTruthy();
+	expect(navigation.queryByRole('button', { name: /select/i })).toBeNull();
+	cleanup();
+	const selection = render(Web3Wallet, { props: { ...props, accountMode: 'selection' } });
+	await fireEvent.click(selection.getByRole('button', { name: 'Account X' }));
+	expect(selection.getByRole('button', { name: 'Select account Account Y' })).toBeTruthy();
 });
