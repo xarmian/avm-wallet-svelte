@@ -38,6 +38,12 @@
 		uiStore.closeWalletConnectModal();
 	}
 
+	// On a phone the wallet app registers the wc: scheme, so navigating to the URI opens it.
+	function handleOpenWallet() {
+		if (!wcModal.uri) return;
+		window.open(wcModal.uri, '_self');
+	}
+
 	async function handleCopyUri() {
 		if (!wcModal.uri) return;
 
@@ -86,8 +92,18 @@
 				</div>
 
 				<p class="avm-wc-modal-instructions">
-					Scan this QR code with your mobile wallet or click below to copy the connection link.
+					Scan this QR code with your mobile wallet, open it in your wallet app on this device, or
+					copy the connection link.
 				</p>
+
+				<button
+					type="button"
+					class="avm-wc-modal-open"
+					onclick={handleOpenWallet}
+					aria-label="Open in wallet"
+				>
+					Open in wallet
+				</button>
 
 				<button
 					type="button"
@@ -214,6 +230,24 @@
 		text-align: center;
 		color: rgb(var(--avm-text-secondary));
 		font-size: var(--avm-font-size-sm);
+	}
+
+	.avm-wc-modal-open {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: var(--avm-spacing-sm) var(--avm-spacing-lg);
+		background-color: rgb(var(--avm-color-primary));
+		color: rgb(var(--avm-color-on-primary));
+		font-size: var(--avm-font-size-sm);
+		font-weight: var(--avm-font-weight-semibold);
+		border: 1px solid transparent;
+		border-radius: var(--avm-radius-md);
+		cursor: pointer;
+	}
+
+	.avm-wc-modal-open:hover {
+		filter: brightness(0.95);
 	}
 
 	.avm-wc-modal-copy {
