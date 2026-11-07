@@ -9,6 +9,8 @@
 
 	interface Props {
 		onAccountPicked?: (account: ConnectedAccount) => void;
+		accountMode?: 'selection' | 'navigation';
+		currentAccount?: Pick<ConnectedAccount, 'address' | 'walletId'> | null;
 		showSignInStatus?: boolean;
 		showSignInButton?: boolean;
 		autoSignIn?: boolean;
@@ -21,13 +23,17 @@
 		showSignInButton = false,
 		autoSignIn = false, // eslint-disable-line @typescript-eslint/no-unused-vars
 		onAccountPicked,
+		accountMode = 'selection',
+		currentAccount = null,
 		onAddAccount,
 		onClose
 	}: Props = $props();
 
 	// Get accounts and selection from store
 	const accounts = $derived(walletStore.accounts);
-	const selectedAccount = $derived(walletStore.selectedAccount);
+	const selectedAccount = $derived(
+		accountMode === 'navigation' ? currentAccount : walletStore.selectedAccount
+	);
 
 	// Group accounts by wallet
 	const accountsByWallet = $derived(() => {
@@ -57,7 +63,7 @@
 	let signingInAddress = $state<string | null>(null);
 
 	function handleSelect(account: ConnectedAccount) {
-		walletStore.selectAccount(account);
+		if (accountMode === 'selection') walletStore.selectAccount(account);
 		onAccountPicked?.(account);
 		onClose?.();
 	}
@@ -108,7 +114,11 @@
 
 <div class="account-selector">
 	{#if accounts.length > 0}
-		<div class="account-selector__list" role="listbox" aria-label="Connected accounts">
+		<div
+			class="account-selector__list"
+			role="listbox"
+			aria-label={accountMode === 'navigation' ? 'Your accounts' : 'Connected accounts'}
+		>
 			{#each accountsByWallet() as wallet (wallet.walletId)}
 				<div class="account-selector__wallet-group">
 					<div class="account-selector__wallet-header">
@@ -133,6 +143,7 @@
 					{#each wallet.accounts as account (account.address)}
 						<AccountRow
 							{account}
+							{accountMode}
 							isSelected={selectedAccount?.address === account.address &&
 								selectedAccount?.walletId === account.walletId}
 							{showSignInStatus}
