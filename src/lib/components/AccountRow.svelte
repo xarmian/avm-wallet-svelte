@@ -9,6 +9,7 @@
 	interface Props {
 		account: ConnectedAccount;
 		isSelected: boolean;
+		accountMode?: 'selection' | 'navigation';
 		showSignInStatus?: boolean;
 		showSignInButton?: boolean;
 		onSelect: () => void;
@@ -20,6 +21,7 @@
 	let {
 		account,
 		isSelected,
+		accountMode = 'selection',
 		showSignInStatus = false,
 		showSignInButton = false,
 		onSelect,
@@ -41,6 +43,7 @@
 	class:account-row--selected={isSelected}
 	role="option"
 	aria-selected={isSelected}
+	aria-current={accountMode === 'navigation' && isSelected ? 'true' : undefined}
 >
 	<button
 		type="button"
@@ -60,6 +63,9 @@
 			<span class="account-row__address">
 				{account.name || formatAddress(account.address)}
 			</span>
+			{#if accountMode === 'navigation' && account.isWatch}
+				<span class="account-row__status">Watch only</span>
+			{/if}
 			{#if showSignInStatus && !account.isWatch}
 				<span
 					class="account-row__status"

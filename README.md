@@ -70,6 +70,58 @@ to show only Pera and Kibisis:
 <Web3Wallet {algodClient} enabledWallets={['pera', 'kibisis']} />
 ```
 
+### Account picker modes
+
+| Prop             | Type                                                      | Default       |
+| ---------------- | --------------------------------------------------------- | ------------- |
+| `accountMode`    | `'selection' \| 'navigation'`                             | `'selection'` |
+| `currentAccount` | `Pick<ConnectedAccount, 'address' \| 'walletId'> \| null` | `null`        |
+
+Selection mode keeps the trigger and marked row tied to `walletStore.selectedAccount`.
+It ignores `currentAccount`. Navigation mode uses `currentAccount` instead, matching
+both `address` and `walletId` against connected accounts. The default trigger shows
+that account's connected name or shortened address. If the pair is disconnected,
+omitted, or `null`, it shows **Your accounts**, with no current row. The current row
+has selected styling and `aria-current="true"`; the dialog and list are named
+**Your accounts**. Watch-only rows remain selectable and show **Watch only** in
+navigation mode. Selection mode's watch-only rendering is unchanged.
+
+`onAccountPicked(account)` runs once for an explicit row pick or a successful
+Add Account completion, which reports the first returned account. Selection mode
+selects the account before calling the callback. Navigation mode reports the pick
+without calling `selectAccount`. The store can still auto-select while restoring,
+adding, or removing accounts; restore, programmatic selection, and passive store
+changes never call `onAccountPicked`. With no connected accounts, the trigger still
+opens the picker and its Add Account path.
+
+Keep the current pair in reactive state and handle picks:
+
+```svelte
+<script lang="ts">
+	import type { Algodv2 } from 'algosdk';
+	import { Web3Wallet, type ConnectedAccount } from 'avm-wallet-svelte';
+
+	let { algodClient }: { algodClient: Algodv2 } = $props();
+	let currentAccount = $state<Pick<ConnectedAccount, 'address' | 'walletId'> | null>(null);
+
+	function handleAccountPicked(account: ConnectedAccount) {
+		currentAccount = { address: account.address, walletId: account.walletId };
+	}
+</script>
+
+<Web3Wallet
+	{algodClient}
+	accountMode="navigation"
+	{currentAccount}
+	onAccountPicked={handleAccountPicked}
+	allowWatchAccounts={true}
+/>
+```
+
+The optional `trigger` snippet keeps its existing `{ selectedAccount, toggle, isOpen }`
+argument. Its `selectedAccount` always means the store's selection, including in
+navigation mode. Use the snippet to supply a custom label from your own state.
+
 ### Styling
 
 `Web3Wallet` includes its default styles automatically; there is nothing extra to import.

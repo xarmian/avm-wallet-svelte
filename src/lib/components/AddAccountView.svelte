@@ -12,12 +12,19 @@
 
 	interface Props {
 		onAccountPicked?: (account: ConnectedAccount) => void;
+		accountMode?: 'selection' | 'navigation';
 		autoSignIn?: boolean;
 		onBack?: () => void;
 		onClose?: () => void;
 	}
 
-	let { autoSignIn = false, onBack, onClose, onAccountPicked }: Props = $props();
+	let {
+		autoSignIn = false,
+		onBack,
+		onClose,
+		onAccountPicked,
+		accountMode = 'selection'
+	}: Props = $props();
 
 	// Get available wallets from registry
 	const wallets = $derived(registry.getWalletInfo());
@@ -75,11 +82,11 @@
 				}
 			}
 
-			// Select the first new account
-			walletStore.selectAccount(connectedAccounts[0]);
+			// Select the first new account in selection mode before reporting the pick.
+			if (accountMode === 'selection') walletStore.selectAccount(connectedAccounts[0]);
 			onAccountPicked?.(connectedAccounts[0]);
 
-			// Close the dropdown (account is selected)
+			// Close the dropdown after the pick.
 			onClose?.();
 		} catch (error) {
 			console.error(`Failed to connect to ${wallet.name}:`, error);
@@ -99,7 +106,9 @@
 			type="button"
 			class="add-account__back"
 			onclick={handleBack}
-			aria-label="Back to account selector"
+			aria-label={accountMode === 'navigation'
+				? 'Back to Your accounts'
+				: 'Back to account selector'}
 		>
 			<svg viewBox="0 0 20 20" fill="currentColor">
 				<path

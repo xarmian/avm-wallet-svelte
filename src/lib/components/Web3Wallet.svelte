@@ -25,6 +25,10 @@
 	// Props interface
 	interface Props {
 		onAccountPicked?: (account: ConnectedAccount) => void;
+		/** Account picks update store selection by default; navigation only emits the pick. */
+		accountMode?: 'selection' | 'navigation';
+		/** Current connected account pair in navigation mode. Omit or pass null for no current row. */
+		currentAccount?: Pick<ConnectedAccount, 'address' | 'walletId'> | null;
 		/** Algorand node client (required) */
 		algodClient: Algodv2;
 		/** Indexer client (optional) */
@@ -53,7 +57,7 @@
 		/** Show sign-in status indicator */
 		showSignInStatus?: boolean;
 
-		/** Custom trigger button content */
+		/** Custom trigger button content. selectedAccount always reflects the store selection. */
 		trigger?: Snippet<
 			[
 				{
@@ -80,7 +84,9 @@
 		showSignInButton = false,
 		showSignInStatus = true,
 		trigger,
-		onAccountPicked
+		onAccountPicked,
+		accountMode = 'selection',
+		currentAccount = null
 	}: Props = $props();
 
 	// Resolve scope (intentionally captured once at init -- scope identity must not change after mount)
@@ -91,6 +97,15 @@
 
 	// Destructure scope for local use
 	const { walletStore, providerStore, uiStore, uiState, registry } = walletScope;
+	const triggerAccount = $derived(
+		accountMode === 'navigation'
+			? walletStore.accounts.find(
+					(account) =>
+						account.address === currentAccount?.address &&
+						account.walletId === currentAccount?.walletId
+				)
+			: walletStore.selectedAccount
+	);
 
 	// Set context for child components
 	setContext(SCOPE_CONTEXT_KEY, walletScope);
@@ -289,12 +304,14 @@
 		>
 			{#if initError}
 				<span class="avm-wallet__error">Error</span>
-			{:else if walletStore.selectedAccount}
+			{:else if triggerAccount}
 				<span class="avm-wallet__account">
-					{walletStore.selectedAccount.name || formatAddress(walletStore.selectedAccount.address)}
+					{triggerAccount.name || formatAddress(triggerAccount.address)}
 				</span>
 			{:else}
-				<span class="avm-wallet__placeholder">Select Account</span>
+				<span class="avm-wallet__placeholder">
+					{accountMode === 'navigation' ? 'Your accounts' : 'Select Account'}
+				</span>
 			{/if}
 
 			<svg
@@ -321,10 +338,12 @@
 				class="avm-wallet__dropdown"
 				class:avm-wallet__dropdown--end={alignment === 'end'}
 				role="dialog"
-				aria-label="Account selector"
+				aria-label={accountMode === 'navigation' ? 'Your accounts' : 'Account selector'}
 			>
 				{#if currentView === 'selector'}
 					<AccountSelector
+						{accountMode}
+						{currentAccount}
 						{showSignInStatus}
 						{showSignInButton}
 						{autoSignIn}
@@ -334,6 +353,7 @@
 					/>
 				{:else if currentView === 'add-account'}
 					<AddAccountView
+						{accountMode}
 						{autoSignIn}
 						{onAccountPicked}
 						onBack={() => (currentView = 'selector')}
@@ -348,7 +368,7 @@
 				class="avm-wallet__backdrop"
 				role="dialog"
 				aria-modal="true"
-				aria-label="Account selector"
+				aria-label={accountMode === 'navigation' ? 'Your accounts' : 'Account selector'}
 				onclick={() => closeList()}
 				onkeydown={(e) => e.key === 'Escape' && closeList()}
 			>
@@ -356,7 +376,9 @@
 				<div class="avm-wallet__modal" onclick={(e) => e.stopPropagation()} role="document">
 					{#if currentView === 'selector'}
 						<header class="avm-wallet__modal-header">
-							<h2 class="avm-wallet__modal-title">Select Account</h2>
+							<h2 class="avm-wallet__modal-title">
+								{accountMode === 'navigation' ? 'Your accounts' : 'Select Account'}
+							</h2>
 							<button
 								type="button"
 								class="avm-wallet__modal-close"
@@ -370,6 +392,8 @@
 						</header>
 						<div class="avm-wallet__modal-body">
 							<AccountSelector
+								{accountMode}
+								{currentAccount}
 								{showSignInStatus}
 								{showSignInButton}
 								{autoSignIn}
@@ -381,6 +405,7 @@
 					{:else if currentView === 'add-account'}
 						<div class="avm-wallet__modal-body avm-wallet__modal-body--no-header">
 							<AddAccountView
+								{accountMode}
 								{autoSignIn}
 								{onAccountPicked}
 								onBack={() => (currentView = 'selector')}
