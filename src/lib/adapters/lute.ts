@@ -14,6 +14,11 @@ interface LuteConnectWallet {
 	): Promise<Array<Uint8Array | { blob?: Uint8Array } | null | undefined>>;
 }
 
+// Not instanceof: bytes delivered by the extension can come from another realm.
+function isBytes(value: unknown): value is Uint8Array {
+	return Object.prototype.toString.call(value) === '[object Uint8Array]';
+}
+
 /**
  * Lute Wallet adapter.
  * Requires genesis ID for connection.
@@ -97,8 +102,8 @@ export class LuteWalletAdapter extends BaseWalletAdapter {
 		// entry it did not sign). Older wallet builds wrapped each entry as { blob }.
 		// A missing entry becomes empty bytes, which the signer refuses.
 		return result.map((entry) => {
-			if (entry instanceof Uint8Array) return entry;
-			if (entry && entry.blob instanceof Uint8Array) return entry.blob;
+			if (isBytes(entry)) return entry;
+			if (entry && isBytes(entry.blob)) return entry.blob;
 			return new Uint8Array(0);
 		});
 	}
