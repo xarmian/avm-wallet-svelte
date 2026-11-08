@@ -9,7 +9,9 @@ import luteIcon from '../icons/lute_icon.png';
 interface LuteConnectWallet {
 	connect(genesisId: string): Promise<string[]>;
 	disconnect(): Promise<void>;
-	signTxns(txns: Array<{ txn: string }>): Promise<Array<{ blob: Uint8Array }>>;
+	signTxns(
+		txns: Array<{ txn: string }>
+	): Promise<Array<Uint8Array | { blob?: Uint8Array } | null | undefined>>;
 }
 
 /**
@@ -91,8 +93,14 @@ export class LuteWalletAdapter extends BaseWalletAdapter {
 
 		const result = await this.wallet.signTxns(txns);
 
-		// Extract the signed transaction bytes
-		return result.map((r) => r.blob);
+		// lute-connect resolves with the signed transaction bytes themselves (null for an
+		// entry it did not sign). Older wallet builds wrapped each entry as { blob }.
+		// A missing entry becomes empty bytes, which the signer refuses.
+		return result.map((entry) => {
+			if (entry instanceof Uint8Array) return entry;
+			if (entry && entry.blob instanceof Uint8Array) return entry.blob;
+			return new Uint8Array(0);
+		});
 	}
 }
 
