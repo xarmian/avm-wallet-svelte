@@ -8,6 +8,8 @@ export default defineConfig({
 	test: {
 		environment: 'jsdom',
 		include: ['src/**/*.test.ts'],
-		setupFiles: ['src/test-setup.ts']
+		setupFiles: ['src/test-setup.ts'],
+		// Run the provider through Vite so its dependencies resolve to their ESM builds.
+		server: { deps: { inline: ['@walletconnect/universal-provider'] } }
 	}
 });
