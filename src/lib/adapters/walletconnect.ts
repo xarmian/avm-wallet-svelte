@@ -286,13 +286,27 @@ export class WalletConnectAdapter implements WalletAdapter {
 		return this.storedSessions()?.some((s) => s.topic === topic) ?? true;
 	}
 
-	/** Sessions in the shared SignClient, or null when the store cannot be read. */
+	/** Sessions in the shared SignClient, or null when the store cannot be read (or is absent). */
 	private storedSessions(): WCSession[] | null {
 		try {
-			return (this.provider?.client?.session?.getAll() ?? []) as WCSession[];
+			const store = this.provider?.client?.session;
+			return store ? (store.getAll() as WCSession[]) : null;
 		} catch {
 			return null;
 		}
+	}
+
+	/** Add topics to the quarantine: never adopted or deleted; they expire on their own. */
+	private quarantineTopics(topics: string[]): void {
+		let list: unknown = [];
+		try {
+			list = JSON.parse(localStorage.getItem(QUARANTINE_KEY) ?? '[]');
+		} catch {
+			// A corrupt list is replaced
+		}
+		const kept = Array.isArray(list) ? list : [];
+		const merged = [...new Set([...kept, ...topics])];
+		localStorage.setItem(QUARANTINE_KEY, JSON.stringify(merged));
 	}
 
 	/** Quarantined topics still stored; the stored list is pruned of the others. */
@@ -316,12 +330,24 @@ export class WalletConnectAdapter implements WalletAdapter {
 	 * - If exactly one owner claim exists (a 3.x owner key, or the 0.9.x key naming a wallet)
 	 *   and no topic is recorded, that claim's adapter adopts the newest eligible unrecorded
 	 *   session, records it and prunes the other unrecorded sessions.
+	 *   With no eligible session it quarantines them instead.
 	 * - Otherwise nobody can tell whose they are: quarantine them all and adopt none.
+	 * Owner keys without a recorded topic (and the 0.9.x key) are claims from older versions;
+	 * attribution consumes them, so it runs once and a later unrecorded session is never
+	 * credited to a leftover claim.
 	 */
 	private async attributeUnrecorded(sessions: WCSession[]): Promise<void> {
 		const keys = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i) ?? '');
 		const owners = keys.filter((k) => k.startsWith(OWNER_PREFIX));
 		if (owners.length > 0) localStorage.removeItem(LEGACY_OWNER_KEY);
+		const consumeClaims = () => {
+			for (const k of owners) {
+				if (localStorage.getItem(TOPIC_PREFIX + k.slice(OWNER_PREFIX.length)) === null) {
+					localStorage.removeItem(k);
+				}
+			}
+			localStorage.removeItem(LEGACY_OWNER_KEY);
+		};
 		const legacy = !!LEGACY_OWNER_IDS[localStorage.getItem(LEGACY_OWNER_KEY) ?? ''];
 		const recorded = new Set(
 			keys
@@ -332,7 +358,10 @@ export class WalletConnectAdapter implements WalletAdapter {
 		const unrecorded = sessions.filter(
 			(s) => s.namespaces?.['algorand'] && !recorded.has(s.topic) && !quarantine.includes(s.topic)
 		);
-		if (unrecorded.length === 0) return;
+		if (unrecorded.length === 0) {
+			consumeClaims();
+			return;
+		}
 
 		if (owners.length + (legacy ? 1 : 0) === 1 && recorded.size === 0) {
 			// The sole claim's adapter adopts; every other adapter leaves them to it
@@ -340,7 +369,11 @@ export class WalletConnectAdapter implements WalletAdapter {
 			const eligible = unrecorded.filter(
 				(s) => this.isOnThisChain(s) && s.namespaces['algorand'].methods?.includes('algo_signTxn')
 			);
-			if (eligible.length === 0) return;
+			if (eligible.length === 0) {
+				this.quarantineTopics(unrecorded.map((s) => s.topic));
+				consumeClaims();
+				return;
+			}
 			// Newest: largest expiry, ties go to the last stored
 			const newest = eligible.reduce((best, s) =>
 				(s.expiry ?? 0) >= (best.expiry ?? 0) ? s : best
@@ -357,10 +390,8 @@ export class WalletConnectAdapter implements WalletAdapter {
 		console.log(
 			`[${this.id}:${this.scopeId}] Quarantining ${unrecorded.length} unattributed sessions`
 		);
-		localStorage.setItem(
-			QUARANTINE_KEY,
-			JSON.stringify([...quarantine, ...unrecorded.map((s) => s.topic)])
-		);
+		this.quarantineTopics(unrecorded.map((s) => s.topic));
+		consumeClaims();
 	}
 
 	private isOnThisChain(session: WCSession): boolean {
@@ -695,7 +726,8 @@ export class WalletConnectAdapter implements WalletAdapter {
 		};
 
 		// A topic still recorded here is a session whose removal failed; keep it on failure
-		const keepTopic = localStorage.getItem(this.sessionTopicKey) !== null;
+		const pending = localStorage.getItem(this.sessionTopicKey);
+		const keepTopic = pending !== null;
 
 		try {
 			const sessionData = await this.provider.connect(connectParams);
@@ -708,6 +740,11 @@ export class WalletConnectAdapter implements WalletAdapter {
 			}
 
 			this.session = sessionData as WCSession;
+			// The new session takes the topic slot; a still-stored old one whose removal did
+			// not go through is quarantined so nothing adopts it
+			if (pending && pending !== this.session.topic && this.isStored(pending)) {
+				this.quarantineTopics([pending]);
+			}
 			this.persistSession();
 
 			const algorandNs = sessionData.namespaces['algorand'];
@@ -750,8 +787,9 @@ export class WalletConnectAdapter implements WalletAdapter {
 			const mine = localStorage.getItem(this.sessionTopicKey);
 			if (mine && this.isStored(mine)) topic = mine;
 		}
+		// Without a provider (its init did not complete) the removal is still pending
 		const removed =
-			!topic || !this.provider?.client || (await this.removeTopic(topic, 'User disconnected'));
+			!topic || (!!this.provider?.client && (await this.removeTopic(topic, 'User disconnected')));
 
 		// Keep the topic recorded while its session is still stored, so connect() retries
 		if (!removed) localStorage.setItem(this.sessionTopicKey, topic!);

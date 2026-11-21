@@ -499,6 +499,73 @@ describe('WalletConnectAdapter restored sessions', () => {
 		expect(localStorage.getItem('wc-session-topic-voiwallet')).toBeNull();
 	});
 
+	it('keeps a disconnect pending when the provider could not initialize', async () => {
+		localStorage.setItem('wc-session-owner-voiwallet', 'voiwallet');
+		localStorage.setItem('wc-session-topic-voiwallet', 'v');
+		const client = fakeClient([session('v', 1000)]);
+		// A new page whose provider init does not complete, then a disconnect
+		const adapter = await adapterOn(client, 'voiwallet', { restore: false });
+		internals(adapter).provider = null;
+		internals(adapter).ensureInitialized = async () => {
+			throw new Error('init');
+		};
+		await adapter.disconnect();
+		expect(localStorage.getItem('wc-session-topic-voiwallet')).toBe('v');
+		expect(localStorage.getItem('wc-session-owner-voiwallet')).toBeNull();
+
+		// The next load removes it rather than restoring it
+		const next = reloaded(client);
+		const again = await adapterOn(next);
+		expect(again.isConnected()).toBe(false);
+		expect(next.topics()).toEqual([]);
+	});
+
+	it('consumes leftover owner claims so a later unrecorded session is not credited to them', async () => {
+		localStorage.setItem('wc-session-owner-walletconnect', 'walletconnect');
+		localStorage.setItem('wc-session-owner-voiwallet', 'voiwallet');
+		localStorage.setItem('wc-session-topic-voiwallet', 'v');
+		const client = fakeClient([session('v', 1000)]);
+		await adapterOn(client);
+		await adapterOn(client, 'walletconnect');
+		expect(localStorage.getItem('wc-session-owner-walletconnect')).toBeNull();
+
+		// V later loses its record (for example an older tab clears the keys)
+		localStorage.removeItem('wc-session-owner-voiwallet');
+		localStorage.removeItem('wc-session-topic-voiwallet');
+		const next = reloaded(client);
+		const generic = await adapterOn(next, 'walletconnect');
+		expect(generic.isConnected()).toBe(false);
+		expect(quarantined()).toEqual(['v']);
+	});
+
+	it('quarantines unrecorded sessions when the sole claim has none it can use', async () => {
+		localStorage.setItem('wc-session-owner-voiwallet', 'voiwallet');
+		const client = fakeClient([session('elsewhere', 1000, otherChain)]);
+		const adapter = await adapterOn(client);
+		expect(adapter.isConnected()).toBe(false);
+		expect(quarantined()).toEqual(['elsewhere']);
+		expect(localStorage.getItem('wc-session-owner-voiwallet')).toBeNull();
+		expect(client.disconnect).not.toHaveBeenCalled();
+	});
+
+	it('quarantines an old session whose removal never went through once a new one pairs', async () => {
+		localStorage.setItem('wc-session-owner-voiwallet', 'voiwallet');
+		const client = fakeClient([session('stale', 1000)]);
+		const adapter = await adapterOn(client);
+		// The delete keeps being refused, but pairing works
+		client.disconnect.mockRejectedValue(new Error('refused'));
+		await adapter.disconnect();
+		client.approveNext(session('fresh', 2000));
+		await adapter.connect();
+		expect(localStorage.getItem('wc-session-topic-voiwallet')).toBe('fresh');
+		expect(quarantined()).toEqual(['stale']);
+		// A later reload restores the new session, not the old one
+		const next = reloaded(client);
+		const again = await adapterOn(next);
+		await again.signTransactions([[payment()]]);
+		expect(requestedTopic(next)).toBe('fresh');
+	});
+
 	it('keeps the recorded topic until removing its session succeeds', async () => {
 		localStorage.setItem('wc-session-owner-voiwallet', 'voiwallet');
 		const client = fakeClient([session('stale', 1000)]);
