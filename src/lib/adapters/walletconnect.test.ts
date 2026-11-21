@@ -745,6 +745,23 @@ describe('WalletConnectAdapter pending removals', () => {
 		expect(localStorage.getItem(PENDING)).toBeNull();
 	});
 
+	it('keeps a session another tab records while a pending removal is retried', async () => {
+		localStorage.setItem(TOPIC, 'v');
+		localStorage.setItem(PENDING, 'v');
+		const client = fakeClient([session('v', 1000)]);
+		const remove = client.disconnect.getMockImplementation()!;
+		client.disconnect.mockImplementation(async (args) => {
+			await remove(args);
+			// Another tab connects and records its session while this removal runs
+			localStorage.setItem(TOPIC, 'other');
+			localStorage.setItem(OWNER, 'voiwallet');
+		});
+		await adapterOn(client);
+		expect(deleted(client)).toEqual(['v']);
+		expect(localStorage.getItem(TOPIC)).toBe('other');
+		expect(localStorage.getItem(PENDING)).toBeNull();
+	});
+
 	it.each(['restore', 'connect'] as const)(
 		'a failed disconnect marks its topic pending until a later %s removes it',
 		async (later) => {

@@ -576,8 +576,13 @@ export class WalletConnectAdapter implements WalletAdapter {
 			if (localStorage.getItem(this.pendingRemovalKey) === mine) {
 				console.log(`[${this.id}:${this.scopeId}] Retrying removal of a disconnected session`);
 				if (!this.isStored(mine) || (await this.removeTopic(mine, 'User disconnected'))) {
-					localStorage.removeItem(this.sessionTopicKey);
-					localStorage.removeItem(this.pendingRemovalKey);
+					// Another tab may have recorded a new session during the removal: keep it
+					if (localStorage.getItem(this.sessionTopicKey) === mine) {
+						localStorage.removeItem(this.sessionTopicKey);
+					}
+					if (localStorage.getItem(this.pendingRemovalKey) === mine) {
+						localStorage.removeItem(this.pendingRemovalKey);
+					}
 				}
 				return;
 			}
