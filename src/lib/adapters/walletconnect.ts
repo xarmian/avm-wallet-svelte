@@ -527,6 +527,15 @@ export class WalletConnectAdapter implements WalletAdapter {
 			console.log(`[${this.id}:${this.scopeId}] No recorded session`);
 			return;
 		}
+		if (localStorage.getItem(this.sessionOwnerKey) !== this.id) {
+			// A topic recorded without an owner key is a session whose removal did not go
+			// through (a disconnect or cleanup while offline): retry it rather than restore it
+			console.log(`[${this.id}:${this.scopeId}] Retrying removal of a disconnected session`);
+			if (!this.isStored(mine) || (await this.removeTopic(mine, 'User disconnected'))) {
+				localStorage.removeItem(this.sessionTopicKey);
+			}
+			return;
+		}
 		const existingSession =
 			(sessions ?? [this.provider.session as WCSession | null]).find((s) => s?.topic === mine) ??
 			null;

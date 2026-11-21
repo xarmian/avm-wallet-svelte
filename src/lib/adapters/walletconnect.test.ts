@@ -476,6 +476,29 @@ describe('WalletConnectAdapter restored sessions', () => {
 		expect(client.topics()).toEqual(['fresh']);
 	});
 
+	it('does not restore a session the user disconnected while offline; it removes it instead', async () => {
+		localStorage.setItem('wc-session-owner-voiwallet', 'voiwallet');
+		const client = fakeClient([session('stale', 1000)]);
+		const adapter = await adapterOn(client);
+		client.disconnect.mockRejectedValue(new Error('offline'));
+		await adapter.disconnect().catch(() => {});
+		expect(client.topics()).toEqual(['stale']);
+
+		// Reload while still offline: nothing restored, the topic stays for a retry
+		const offline = reloaded(client);
+		offline.disconnect.mockRejectedValue(new Error('offline'));
+		const again = await adapterOn(offline);
+		expect(again.isConnected()).toBe(false);
+		expect(localStorage.getItem('wc-session-topic-voiwallet')).toBe('stale');
+
+		// Reload online: still nothing restored, and the pending removal goes through
+		const online = reloaded(offline);
+		const third = await adapterOn(online);
+		expect(third.isConnected()).toBe(false);
+		expect(online.topics()).toEqual([]);
+		expect(localStorage.getItem('wc-session-topic-voiwallet')).toBeNull();
+	});
+
 	it('keeps the recorded topic until removing its session succeeds', async () => {
 		localStorage.setItem('wc-session-owner-voiwallet', 'voiwallet');
 		const client = fakeClient([session('stale', 1000)]);
