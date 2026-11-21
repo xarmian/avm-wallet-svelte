@@ -714,3 +714,83 @@ describe('WalletConnectAdapter pairing URI', () => {
 		}
 	});
 });
+
+describe('WalletConnectAdapter pending removals', () => {
+	const OWNER = 'wc-session-owner-voiwallet';
+	const TOPIC = 'wc-session-topic-voiwallet';
+	const PENDING = 'wc-session-pending-voiwallet';
+
+	it('restores a recorded session whose owner key is missing and no removal is pending', async () => {
+		localStorage.setItem(TOPIC, 'v');
+		localStorage.setItem('wc-chainId-voiwallet', chain);
+		const client = fakeClient([session('v', 1000)]);
+		const adapter = await adapterOn(client);
+		expect(adapter.isConnected()).toBe(true);
+		expect((await adapter.connect()).map((a) => a.address)).toEqual([account.addr.toString()]);
+		expect(client.disconnect).not.toHaveBeenCalled();
+		expect(client.topics()).toEqual(['v']);
+		expect(localStorage.getItem(OWNER)).toBe('voiwallet');
+		expect(localStorage.getItem(TOPIC)).toBe('v');
+	});
+
+	it('removes a recorded session marked as a pending removal and clears its keys', async () => {
+		localStorage.setItem(TOPIC, 'v');
+		localStorage.setItem(PENDING, 'v');
+		const client = fakeClient([session('v', 1000)]);
+		const adapter = await adapterOn(client);
+		expect(adapter.isConnected()).toBe(false);
+		expect(deleted(client)).toEqual(['v']);
+		expect(client.topics()).toEqual([]);
+		expect(localStorage.getItem(TOPIC)).toBeNull();
+		expect(localStorage.getItem(PENDING)).toBeNull();
+	});
+
+	it.each(['restore', 'connect'] as const)(
+		'a failed disconnect marks its topic pending until a later %s removes it',
+		async (later) => {
+			localStorage.setItem(OWNER, 'voiwallet');
+			const client = fakeClient([session('stale', 1000)]);
+			const adapter = await adapterOn(client);
+			const online = client.disconnect.getMockImplementation()!;
+			client.disconnect.mockRejectedValue(new Error('offline'));
+			await adapter.disconnect();
+			expect(client.topics()).toEqual(['stale']);
+			expect(localStorage.getItem(TOPIC)).toBe('stale');
+			expect(localStorage.getItem(PENDING)).toBe('stale');
+
+			if (later === 'restore') {
+				const next = reloaded(client);
+				const again = await adapterOn(next);
+				expect(again.isConnected()).toBe(false);
+				expect(next.topics()).toEqual([]);
+				expect(localStorage.getItem(TOPIC)).toBeNull();
+			} else {
+				client.disconnect.mockImplementation(online);
+				client.approveNext(session('fresh', 2000));
+				await adapter.connect();
+				expect(client.topics()).toEqual(['fresh']);
+				expect(localStorage.getItem(TOPIC)).toBe('fresh');
+			}
+			expect(localStorage.getItem(PENDING)).toBeNull();
+		}
+	);
+
+	it('an invalid session whose removal failed is marked pending until a connect succeeds', async () => {
+		localStorage.setItem(OWNER, 'voiwallet');
+		localStorage.setItem(TOPIC, 'bad');
+		const bad = session('bad', 1000);
+		bad.namespaces.algorand.methods = [];
+		const client = fakeClient([bad]);
+		client.disconnect.mockRejectedValue(new Error('offline'));
+		const adapter = await adapterOn(client);
+		expect(adapter.isConnected()).toBe(false);
+		expect(localStorage.getItem(TOPIC)).toBe('bad');
+		expect(localStorage.getItem(PENDING)).toBe('bad');
+
+		client.approveNext(session('fresh', 2000));
+		await adapter.connect();
+		expect(localStorage.getItem(TOPIC)).toBe('fresh');
+		expect(localStorage.getItem(OWNER)).toBe('voiwallet');
+		expect(localStorage.getItem(PENDING)).toBeNull();
+	});
+});
