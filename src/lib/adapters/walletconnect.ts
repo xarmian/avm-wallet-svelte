@@ -567,13 +567,15 @@ export class WalletConnectAdapter implements WalletAdapter {
 			}
 			return;
 		}
+		// Read the store again: attribution awaits removals, during which sessions can go
+		const current = this.storedSessions();
 		const existingSession =
-			(sessions ?? [this.provider.session as WCSession | null]).find((s) => s?.topic === mine) ??
+			(current ?? [this.provider.session as WCSession | null]).find((s) => s?.topic === mine) ??
 			null;
 		if (!existingSession) {
 			// Forget a recorded session that is gone and wait for connect()
 			console.log(`[${this.id}:${this.scopeId}] Recorded session no longer stored`);
-			if (sessions) this.clearPersistedSession();
+			if (current) this.clearPersistedSession();
 			return;
 		}
 

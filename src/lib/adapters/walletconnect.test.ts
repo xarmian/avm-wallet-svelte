@@ -538,6 +538,24 @@ describe('WalletConnectAdapter restored sessions', () => {
 		expect(quarantined()).toEqual(['v']);
 	});
 
+	it('attributes once when several adapters start together on one page load', async () => {
+		localStorage.setItem('wc-session-owner-voiwallet', 'voiwallet');
+		const client = fakeClient([session('old', 1000), session('new', 2000)]);
+		const [voi, biatec, generic] = await Promise.all([
+			adapterOn(client),
+			adapterOn(client, 'biatec'),
+			adapterOn(client, 'walletconnect')
+		]);
+		expect(voi.isConnected()).toBe(true);
+		expect(biatec.isConnected()).toBe(false);
+		expect(generic.isConnected()).toBe(false);
+		await voi.signTransactions([[payment()]]);
+		expect(requestedTopic(client)).toBe('new');
+		// Only the old session may be removed; nothing else is touched
+		expect(deleted(client).every((t) => t === 'old')).toBe(true);
+		expect(client.topics()).toContain('new');
+	});
+
 	it('quarantines unrecorded sessions when the sole claim has none it can use', async () => {
 		localStorage.setItem('wc-session-owner-voiwallet', 'voiwallet');
 		const client = fakeClient([session('elsewhere', 1000, otherChain)]);
