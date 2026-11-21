@@ -129,6 +129,10 @@ function fakeClient(sessions: FakeSession[]) {
 				events.emit('session_expire', { topic });
 			}
 		},
+		/** Emit a SignClient event without touching the store. */
+		emit(event: string, payload: unknown) {
+			events.emit(event, payload);
+		},
 		topics: () => [...store.keys()],
 		kv
 	};
@@ -142,7 +146,11 @@ const projects = new WeakMap<Client, string>();
 async function adapterOn(
 	client: Client,
 	variant: 'voiwallet' | 'biatec' | 'walletconnect' = 'voiwallet',
-	{ scope, hash = genesisHash }: { scope?: string; hash?: string } = {}
+	{
+		scope,
+		hash = genesisHash,
+		restore = true
+	}: { scope?: string; hash?: string; restore?: boolean } = {}
 ) {
 	holder.client = client;
 	if (!projects.has(client)) projects.set(client, `project-${Math.random()}`);
@@ -161,7 +169,7 @@ async function adapterOn(
 		chainId: chain,
 		algodClient: {} as Algodv2
 	});
-	await adapter.reconnect();
+	if (restore) await adapter.reconnect();
 	return adapter;
 }
 
@@ -170,6 +178,12 @@ const internals = (adapter: WalletConnectAdapter) => adapter as any;
 const lastRequest = (client: Client) =>
 	(client.request.mock.calls.at(-1) as unknown as [{ topic: string; chainId: string }])[0];
 const requestedTopic = (client: Client) => lastRequest(client).topic;
+const deleted = (client: Client) =>
+	client.disconnect.mock.calls.map((c) => (c as [{ topic: string }])[0].topic);
+const quarantined = () =>
+	JSON.parse(localStorage.getItem('wc-session-topic-unattributed') ?? '[]') as string[];
+/** A page reload: a new SignClient over the same stored sessions, localStorage kept. */
+const reloaded = (client: Client) => fakeClient(client.session.getAll() as FakeSession[]);
 
 afterEach(() => {
 	localStorage.clear();
@@ -199,7 +213,18 @@ describe('WalletConnectAdapter restored sessions', () => {
 		expect(requestedTopic(client)).toBe('voi');
 	});
 
-	it('prunes its own stale sessions and leaves another adapter session alone', async () => {
+	it('restores the newest unrecorded session for the sole claim and prunes the rest', async () => {
+		localStorage.setItem('wc-session-owner-voiwallet', 'voiwallet');
+		localStorage.setItem('wc-chainId-voiwallet', chain);
+		const client = fakeClient([session('old', 1000), session('new', 2000)]);
+		const voi = await adapterOn(client);
+		expect(internals(voi).session.topic).toBe('new');
+		expect(localStorage.getItem('wc-session-topic-voiwallet')).toBe('new');
+		expect(deleted(client)).toEqual(['old']);
+		expect(client.topics()).toEqual(['new']);
+	});
+
+	it('quarantines unrecorded sessions when a claim sits beside recorded topics', async () => {
 		localStorage.setItem('wc-session-owner-voiwallet', 'voiwallet');
 		localStorage.setItem('wc-session-owner-biatec', 'biatec');
 		localStorage.setItem('wc-session-topic-biatec', 'biatec');
@@ -208,10 +233,50 @@ describe('WalletConnectAdapter restored sessions', () => {
 			session('biatec', 3000),
 			session('new', 2000)
 		]);
-		await adapterOn(client);
-		const pruned = client.disconnect.mock.calls.map((c) => (c as [{ topic: string }])[0].topic);
-		expect(pruned).toEqual(['old']);
-		expect(client.topics()).toEqual(['biatec', 'new']);
+		const voi = await adapterOn(client);
+		expect(voi.isConnected()).toBe(false);
+		expect(client.disconnect).not.toHaveBeenCalled();
+		expect(client.topics()).toEqual(['old', 'biatec', 'new']);
+		expect(quarantined()).toEqual(['old', 'new']);
+	});
+
+	it('drops a stale 0.9.x owner key and lets the one 3.x claim restore', async () => {
+		localStorage.setItem('wc-session-owner', 'WalletConnect');
+		localStorage.setItem('wc-session-owner-biatec', 'biatec');
+		localStorage.setItem('wc-chainId-biatec', chain);
+		const client = fakeClient([session('B', 1000)]);
+		const wc = await adapterOn(client, 'walletconnect');
+		const biatec = await adapterOn(client, 'biatec');
+		expect(wc.isConnected()).toBe(false);
+		expect(biatec.isConnected()).toBe(true);
+		expect(internals(biatec).session.topic).toBe('B');
+		expect(localStorage.getItem('wc-session-owner')).toBeNull();
+		expect(localStorage.getItem('wc-session-topic-biatec')).toBe('B');
+		expect(localStorage.getItem('wc-session-topic-walletconnect')).toBeNull();
+	});
+
+	it('keeps quarantined sessions out of a later reload after one adapter reconnects', async () => {
+		for (const id of ['biatec', 'voiwallet']) {
+			localStorage.setItem(`wc-session-owner-${id}`, id);
+			localStorage.setItem(`wc-chainId-${id}`, chain);
+		}
+		const client = fakeClient([session('oldB', 1000), session('oldV', 2000)]);
+		const biatec = await adapterOn(client, 'biatec');
+		const voi = await adapterOn(client);
+		expect(biatec.isConnected()).toBe(false);
+		expect(voi.isConnected()).toBe(false);
+		expect(quarantined()).toEqual(['oldB', 'oldV']);
+		client.approveNext(session('N', 3000));
+		await voi.connect();
+		expect(client.topics()).toEqual(['oldB', 'oldV', 'N']);
+
+		const next = reloaded(client);
+		const biatec2 = await adapterOn(next, 'biatec');
+		const voi2 = await adapterOn(next);
+		expect(biatec2.isConnected()).toBe(false);
+		expect(next.disconnect).not.toHaveBeenCalled();
+		expect(next.topics()).toEqual(['oldB', 'oldV', 'N']);
+		expect(internals(voi2).session.topic).toBe('N');
 	});
 
 	it('does not prune when another adapter may own the unrecorded sessions', async () => {
@@ -223,6 +288,7 @@ describe('WalletConnectAdapter restored sessions', () => {
 		expect(client.disconnect).not.toHaveBeenCalled();
 		expect(voi.isConnected()).toBe(false);
 		expect(biatec.isConnected()).toBe(false);
+		expect(quarantined()).toEqual(['old', 'new']);
 	});
 
 	it('adopts no unrecorded session while another adapter also claims them', async () => {
@@ -254,28 +320,38 @@ describe('WalletConnectAdapter restored sessions', () => {
 		expect(localStorage.getItem('wc-session-topic-voiwallet')).toBeNull();
 	});
 
-	it('signs with a chain the restored session holds when it matched the stored chain', async () => {
+	it('signs with the stored session chain, then proposes the configured chain again', async () => {
 		localStorage.setItem('wc-session-owner-voiwallet', 'voiwallet');
 		localStorage.setItem('wc-chainId-voiwallet', otherChain);
 		const client = fakeClient([session('voi', 1000, otherChain)]);
 		const adapter = await adapterOn(client);
 		await adapter.signTransactions([[payment()]]);
 		expect(lastRequest(client).chainId).toBe(otherChain);
+		await adapter.disconnect();
+		client.approveNext(session('fresh', 2000));
+		await adapter.connect();
+		const proposal = (
+			client.connect.mock.calls.at(-1) as unknown as [
+				{ optionalNamespaces: { algorand: { chains: string[] } } }
+			]
+		)[0];
+		expect(proposal.optionalNamespaces.algorand.chains).toEqual([chain]);
 	});
 
-	it('does not adopt the session another scope claims on its own chain', async () => {
+	it('does not adopt the session of another scope', async () => {
 		localStorage.setItem('wc-session-owner-a-voiwallet', 'voiwallet');
 		localStorage.setItem('wc-chainId-a-voiwallet', chain);
 		localStorage.setItem('wc-session-owner-b-voiwallet', 'voiwallet');
 		localStorage.setItem('wc-chainId-b-voiwallet', otherChain);
-		const client = fakeClient([session('b', 1000, otherChain)]);
+		const client = fakeClient([session('a', 1000), session('b', 1000, otherChain)]);
 		const a = await adapterOn(client, 'voiwallet', { scope: 'a' });
-		expect(a.isConnected()).toBe(false);
-		expect(client.disconnect).not.toHaveBeenCalled();
-		expect(localStorage.getItem('wc-chainId-a-voiwallet')).toBe(chain);
 		const b = await adapterOn(client, 'voiwallet', { scope: 'b', hash: otherGenesisHash });
-		expect(b.isConnected()).toBe(true);
-		expect(localStorage.getItem('wc-session-topic-b-voiwallet')).toBe('b');
+		expect(a.isConnected()).toBe(false);
+		expect(b.isConnected()).toBe(false);
+		expect(client.disconnect).not.toHaveBeenCalled();
+		expect(localStorage.getItem('wc-session-topic-a-voiwallet')).toBeNull();
+		expect(localStorage.getItem('wc-session-topic-b-voiwallet')).toBeNull();
+		expect(quarantined()).toEqual(['a', 'b']);
 	});
 
 	it('restores a session recorded only by the 0.9.x owner key', async () => {
@@ -289,6 +365,36 @@ describe('WalletConnectAdapter restored sessions', () => {
 		expect(localStorage.getItem('wc-session-owner-voiwallet')).toBe('voiwallet');
 		expect(localStorage.getItem('wc-session-owner')).toBeNull();
 	});
+
+	it('keeps the topic of an invalid recorded session whose removal failed', async () => {
+		localStorage.setItem('wc-session-owner-voiwallet', 'voiwallet');
+		localStorage.setItem('wc-session-topic-voiwallet', 'bad');
+		const bad = session('bad', 1000);
+		bad.namespaces.algorand.methods = [];
+		const client = fakeClient([bad]);
+		client.disconnect.mockRejectedValue(new Error('offline'));
+		const adapter = await adapterOn(client);
+		expect(adapter.isConnected()).toBe(false);
+		expect(deleted(client)).toContain('bad');
+		expect(localStorage.getItem('wc-session-topic-voiwallet')).toBe('bad');
+	});
+
+	it.each([true, false])(
+		'disconnect before restoring removes the recorded session (delete succeeds: %s)',
+		async (online) => {
+			localStorage.setItem('wc-session-owner-voiwallet', 'voiwallet');
+			localStorage.setItem('wc-chainId-voiwallet', chain);
+			localStorage.setItem('wc-session-topic-voiwallet', 'v');
+			const client = fakeClient([session('v', 1000)]);
+			if (!online) client.disconnect.mockRejectedValue(new Error('offline'));
+			const adapter = await adapterOn(client, 'voiwallet', { restore: false });
+			await adapter.disconnect();
+			expect(deleted(client)).toContain('v');
+			expect(adapter.isConnected()).toBe(false);
+			expect(localStorage.getItem('wc-session-topic-voiwallet')).toBe(online ? null : 'v');
+			expect(client.topics()).toEqual(online ? [] : ['v']);
+		}
+	);
 
 	it('disconnect leaves the provider off the deleted topic', async () => {
 		localStorage.setItem('wc-session-owner-voiwallet', 'voiwallet');
@@ -330,22 +436,29 @@ describe('WalletConnectAdapter restored sessions', () => {
 		expect(keys.filter((k) => k.endsWith('b'))).toHaveLength(3);
 	});
 
-	it('reconnect replaces a session left by the 0.9.x owner key', async () => {
+	it('treats the 0.9.x owner key as stale next to a 3.x claim and quarantines its session', async () => {
 		localStorage.setItem('wc-session-owner', 'VoiWallet');
 		localStorage.setItem('wc-session-owner-biatec', 'biatec');
 		localStorage.setItem('wc-session-topic-biatec', 'biatec');
 		const client = fakeClient([session('legacy', 1000), session('biatec', 1500)]);
 		const adapter = await adapterOn(client);
-		expect(internals(adapter).session.topic).toBe('legacy');
-		// The removal fails offline; the reconnect removes the recorded legacy session.
-		const online = client.disconnect.getMockImplementation()!;
-		client.disconnect.mockRejectedValue(new Error('offline'));
-		await adapter.disconnect().catch(() => {});
-		client.disconnect.mockImplementation(online);
+		expect(adapter.isConnected()).toBe(false);
+		expect(localStorage.getItem('wc-session-owner')).toBeNull();
+		expect(quarantined()).toEqual(['legacy']);
 		client.approveNext(session('fresh', 2000));
 		await adapter.connect();
-		expect(client.topics()).toEqual(['biatec', 'fresh']);
-		expect(localStorage.getItem('wc-session-owner')).toBeNull();
+		expect(client.disconnect).not.toHaveBeenCalled();
+		expect(client.topics()).toEqual(['legacy', 'biatec', 'fresh']);
+	});
+
+	it('prunes quarantined topics that are no longer stored', async () => {
+		localStorage.setItem('wc-session-topic-unattributed', JSON.stringify(['gone', 'q']));
+		localStorage.setItem('wc-session-owner-voiwallet', 'voiwallet');
+		const client = fakeClient([session('q', 1000)]);
+		const adapter = await adapterOn(client);
+		expect(adapter.isConnected()).toBe(false);
+		expect(client.disconnect).not.toHaveBeenCalled();
+		expect(quarantined()).toEqual(['q']);
 	});
 
 	it('connect removes its own session whose delete failed earlier', async () => {
@@ -410,11 +523,26 @@ describe('WalletConnectAdapter restored sessions', () => {
 		}
 	);
 
-	it('rejects signTransactions when the wallet request expires', async () => {
+	it('session_expire alone for its topic disconnects the adapter as expired', async () => {
+		const states: string[] = [];
+		onSessionStateChange((e) => states.push(e.type));
+		localStorage.setItem('wc-session-owner-voiwallet', 'voiwallet');
+		const client = fakeClient([session('voi', 1000)]);
+		const voi = await adapterOn(client);
+		client.emit('session_expire', { topic: 'other' });
+		expect(voi.isConnected()).toBe(true);
+		client.emit('session_expire', { topic: 'voi' });
+		expect(voi.isConnected()).toBe(false);
+		expect(states).toEqual(['expired']);
+		expect(localStorage.getItem('wc-session-topic-voiwallet')).toBeNull();
+	});
+
+	it('propagates a client request rejection from signTransactions', async () => {
 		localStorage.setItem('wc-session-owner-voiwallet', 'voiwallet');
 		const client = fakeClient([session('only', 1000)]);
 		const adapter = await adapterOn(client);
 		client.request.mockRejectedValueOnce(new Error('Request expired. Please try again.'));
 		await expect(adapter.signTransactions([[payment()]])).rejects.toThrow('Request expired');
+		expect(adapter.isConnected()).toBe(true);
 	});
 });
