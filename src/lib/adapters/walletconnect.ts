@@ -7,6 +7,7 @@ import type { Transaction } from 'algosdk';
  */
 interface WCSession {
 	topic: string;
+	expiry?: number;
 	namespaces: {
 		[key: string]: {
 			accounts?: string[];
@@ -85,6 +86,32 @@ export function onWalletConnectModal(
 	return () => {
 		modalHandlers.delete(scopeId);
 	};
+}
+
+/**
+ * localStorage keys that track which adapter owns which session in the shared SignClient.
+ * Each key is suffixed with `<id>` (default scope) or `<scopeId>-<id>`.
+ */
+const OWNER_PREFIX = 'wc-session-owner-';
+const TOPIC_PREFIX = 'wc-session-topic-';
+const CHAIN_PREFIX = 'wc-chainId-';
+/** Owner key written by 0.9.x (no scopes), valued with the 0.9.x wallet name. */
+const LEGACY_OWNER_KEY = 'wc-session-owner';
+const LEGACY_OWNER_IDS: Record<string, string> = {
+	VoiWallet: 'voiwallet',
+	BiatecWallet: 'biatec',
+	WalletConnect: 'walletconnect'
+};
+/** UniversalProvider's per-topic storage prefix. */
+const PROVIDER_STORAGE = 'wc@2:universal_provider:/';
+
+interface SessionOwnership {
+	/** Topic recorded for this adapter, if any. */
+	mine: string | null;
+	/** Topics recorded by other adapters or scopes. */
+	foreign: Set<string>;
+	/** Whether unrecorded sessions can be attributed to this adapter. */
+	claimsUnrecorded: boolean;
 }
 
 /**
@@ -232,18 +259,76 @@ export class WalletConnectAdapter implements WalletAdapter {
 	 * Get the scoped localStorage key for session owner.
 	 */
 	private get sessionOwnerKey(): string {
-		return this.scopeId === 'default'
-			? `wc-session-owner-${this.id}`
-			: `wc-session-owner-${this.scopeId}-${this.id}`;
+		return OWNER_PREFIX + this.keySuffix;
 	}
 
 	/**
 	 * Get the scoped localStorage key for chain ID.
 	 */
 	private get chainIdKey(): string {
-		return this.scopeId === 'default'
-			? `wc-chainId-${this.id}`
-			: `wc-chainId-${this.scopeId}-${this.id}`;
+		return CHAIN_PREFIX + this.keySuffix;
+	}
+
+	/**
+	 * Get the scoped localStorage key recording the topic of this adapter's session.
+	 */
+	private get sessionTopicKey(): string {
+		return TOPIC_PREFIX + this.keySuffix;
+	}
+
+	private get keySuffix(): string {
+		return this.scopeId === 'default' ? this.id : `${this.scopeId}-${this.id}`;
+	}
+
+	/** Whether the 0.9.x owner key names this wallet (0.9.x had only the default scope). */
+	private legacyOwnerIsSelf(): boolean {
+		const legacy = localStorage.getItem(LEGACY_OWNER_KEY);
+		return this.scopeId === 'default' && !!legacy && LEGACY_OWNER_IDS[legacy] === this.id;
+	}
+
+	/**
+	 * Work out which sessions in the shared SignClient this adapter owns.
+	 * - A topic recorded under this adapter's topic key is ours; a topic recorded under any
+	 *   other adapter's topic key is theirs and is never adopted or deleted.
+	 * - Unrecorded sessions (created before topics were recorded) are ours only when this
+	 *   adapter holds an owner claim (its owner key, or the 0.9.x key naming this wallet) and no
+	 *   other adapter on this chain holds an owner claim without a recorded topic.
+	 */
+	private sessionOwnership(): SessionOwnership {
+		const foreign = new Set<string>();
+		let contested = false;
+		for (let i = 0; i < localStorage.length; i++) {
+			const key = localStorage.key(i);
+			if (!key) continue;
+			if (key.startsWith(TOPIC_PREFIX) && key !== this.sessionTopicKey) {
+				foreign.add(localStorage.getItem(key) ?? '');
+			} else if (key === LEGACY_OWNER_KEY) {
+				if (!this.legacyOwnerIsSelf()) contested = true;
+			} else if (key.startsWith(OWNER_PREFIX) && key !== this.sessionOwnerKey) {
+				const suffix = key.slice(OWNER_PREFIX.length);
+				const chain = localStorage.getItem(CHAIN_PREFIX + suffix);
+				const recorded = localStorage.getItem(TOPIC_PREFIX + suffix) !== null;
+				if (!recorded && (!chain || chain === this.chainId)) contested = true;
+			}
+		}
+		const claim =
+			localStorage.getItem(this.sessionOwnerKey) === this.id || this.legacyOwnerIsSelf();
+		return {
+			mine: localStorage.getItem(this.sessionTopicKey),
+			foreign,
+			claimsUnrecorded: claim && !contested
+		};
+	}
+
+	private isOwned(session: WCSession, ownership: SessionOwnership) {
+		if (session.topic === ownership.mine) return true;
+		return ownership.claimsUnrecorded && !ownership.foreign.has(session.topic);
+	}
+
+	private isOnThisChain(session: WCSession): boolean {
+		const chains = session.namespaces?.['algorand']?.chains ?? [];
+		const storedChainId = localStorage.getItem(this.chainIdKey);
+		return chains.includes(this.chainId!) || (!!storedChainId && chains.includes(storedChainId));
 	}
 
 	private async ensureInitialized(): Promise<void> {
@@ -271,13 +356,14 @@ export class WalletConnectAdapter implements WalletAdapter {
 		// Get shared provider singleton (prevents multiple WC Core initializations)
 		this.provider = await getSharedProvider(this.wcConfig);
 
-		// Subscribe to session events (remove first to prevent duplicates)
-		this.provider.off('session_delete', this.handleSessionDelete);
-		this.provider.on('session_delete', this.handleSessionDelete);
-
-		// CRITICAL: Subscribe to session_expire - this is what fires when sessions timeout
-		this.provider.off('session_expire', this.handleSessionExpire);
-		this.provider.on('session_expire', this.handleSessionExpire);
+		// Subscribe to session events on the SignClient (remove first to prevent duplicates).
+		// UniversalProvider never forwards session_expire and only forwards session_delete
+		// for its own session, so listen on the client, which emits both for every topic.
+		const client = this.provider.client;
+		client.off('session_delete', this.handleSessionDelete);
+		client.on('session_delete', this.handleSessionDelete);
+		client.off('session_expire', this.handleSessionExpire);
+		client.on('session_expire', this.handleSessionExpire);
 
 		// Subscribe to page visibility changes to validate session on return
 		if (BROWSER) {
@@ -297,7 +383,7 @@ export class WalletConnectAdapter implements WalletAdapter {
 	 */
 	private handleSessionDelete = (args: { topic: string }): void => {
 		// Only clear if the deleted session matches our session
-		if (!this.session || (args?.topic && this.session.topic === args.topic)) {
+		if (this.session && args?.topic && this.session.topic === args.topic) {
 			console.log(`[${this.id}:${this.scopeId}] Session deleted, topic:`, args?.topic);
 			this.session = null;
 			this._accounts = [];
@@ -316,7 +402,7 @@ export class WalletConnectAdapter implements WalletAdapter {
 	private handleSessionExpire = (args: { topic: string }): void => {
 		console.log(`[${this.id}:${this.scopeId}] Session expired, topic:`, args?.topic);
 		// Only clear if the expired session matches our session
-		if (!this.session || (args?.topic && this.session.topic === args.topic)) {
+		if (this.session && args?.topic && this.session.topic === args.topic) {
 			this.session = null;
 			this._accounts = [];
 			this.clearPersistedSession();
@@ -392,37 +478,44 @@ export class WalletConnectAdapter implements WalletAdapter {
 			return;
 		}
 
-		// Search all sessions for one matching this scope's chain ID
+		// Pick this adapter's session among the stored ones
 		let existingSession: WCSession | null = null;
+		let stale: WCSession[] = [];
+		let ownership: SessionOwnership | null = null;
 		try {
-			const allSessions = this.provider.client?.session?.getAll() ?? [];
-			const storedChainId = localStorage.getItem(this.chainIdKey);
+			const allSessions = (this.provider.client?.session?.getAll() ?? []) as WCSession[];
+			ownership = this.sessionOwnership();
+			const foreign = ownership.foreign;
+			const candidates = allSessions.filter(
+				(s) => s.namespaces?.['algorand'] && !foreign.has(s.topic)
+			);
+			const eligible = candidates.filter(
+				(s) => this.isOnThisChain(s) && s.namespaces['algorand'].methods?.includes('algo_signTxn')
+			);
 
-			for (const session of allSessions) {
-				const algorandNs = session.namespaces?.['algorand'];
-				if (!algorandNs) continue;
-
-				const sessionChains = algorandNs.chains || [];
-				const chainMatches =
-					sessionChains.includes(this.chainId!) ||
-					(storedChainId && sessionChains.includes(storedChainId));
-
-				if (chainMatches) {
-					existingSession = session as WCSession;
-					break;
-				}
-
-				// Fallback: any algorand chain
-				const hasAlgorandChain = sessionChains.some((c: string) => c.startsWith('algorand:'));
-				if (hasAlgorandChain) {
-					existingSession = session as WCSession;
+			if (eligible.length > 0) {
+				// Our recorded session, else the newest (largest expiry; ties go to the last stored)
+				existingSession =
+					eligible.find((s) => s.topic === ownership!.mine) ??
+					eligible.reduce((best, s) => ((s.expiry ?? 0) >= (best.expiry ?? 0) ? s : best));
+				stale = eligible.filter((s) => s !== existingSession && this.isOwned(s, ownership!));
+			} else {
+				// Fallback: a session on this chain, else any algorand chain
+				existingSession =
+					candidates.find((s) => this.isOnThisChain(s)) ??
+					candidates.find((s) =>
+						(s.namespaces['algorand'].chains ?? []).some((c) => c.startsWith('algorand:'))
+					) ??
+					null;
+				if (existingSession && !this.isOnThisChain(existingSession)) {
 					// Use session's chain ID
-					const sessionChainId = sessionChains.find((c: string) => c.startsWith('algorand:'));
+					const sessionChainId = existingSession.namespaces['algorand'].chains?.find((c) =>
+						c.startsWith('algorand:')
+					);
 					if (sessionChainId) {
 						this.chainId = sessionChainId;
 						localStorage.setItem(this.chainIdKey, sessionChainId);
 					}
-					break;
 				}
 			}
 		} catch {
@@ -454,6 +547,61 @@ export class WalletConnectAdapter implements WalletAdapter {
 		);
 		this.session = existingSession;
 		this._accounts = this.extractAccounts(algorandNs.accounts || []);
+
+		if (ownership?.claimsUnrecorded) {
+			localStorage.setItem(this.sessionTopicKey, existingSession.topic);
+			if (this.legacyOwnerIsSelf()) localStorage.removeItem(LEGACY_OWNER_KEY);
+		}
+		await this.removeSessions(stale, 'Stale session');
+	}
+
+	/**
+	 * Disconnect a session by topic. The provider's own session goes through
+	 * provider.disconnect() so UniversalProvider clears its session, namespaces and pairings.
+	 */
+	private async disconnectTopic(topic: string, message: string): Promise<void> {
+		const provider = this.provider!;
+		if (provider.session?.topic === topic) {
+			await provider.disconnect();
+			return;
+		}
+		await provider.client.disconnect({ topic, reason: { code: 6000, message } });
+		try {
+			for (const key of ['namespaces', 'optionalNamespaces', 'sessionProperties']) {
+				await provider.client.core.storage.removeItem(`${PROVIDER_STORAGE}${key}${topic}`);
+			}
+		} catch {
+			// The session is gone; leftover provider keys are harmless
+		}
+	}
+
+	/** Best-effort removal of sessions; failures are logged and skipped. */
+	private async removeSessions(sessions: WCSession[], message: string): Promise<void> {
+		for (const session of sessions) {
+			try {
+				console.log(`[${this.id}:${this.scopeId}] Removing session - topic: ${session.topic}`);
+				await this.disconnectTopic(session.topic, message);
+			} catch (error) {
+				console.warn(
+					`[${this.id}:${this.scopeId}] Failed to remove session ${session.topic}:`,
+					error
+				);
+			}
+		}
+	}
+
+	/** Remove every stored session this adapter owns, before pairing a new one. */
+	private async removeOwnedSessions(): Promise<void> {
+		const ownership = this.sessionOwnership();
+		const allSessions = (this.provider?.client?.session?.getAll() ?? []) as WCSession[];
+		const owned = allSessions.filter(
+			(s) =>
+				s.topic === ownership.mine ||
+				(s.namespaces?.['algorand'] && this.isOnThisChain(s) && this.isOwned(s, ownership))
+		);
+		await this.removeSessions(owned, 'Reconnecting');
+		if (this.legacyOwnerIsSelf()) localStorage.removeItem(LEGACY_OWNER_KEY);
+		localStorage.removeItem(this.sessionTopicKey);
 	}
 
 	/**
@@ -490,12 +638,16 @@ export class WalletConnectAdapter implements WalletAdapter {
 		if (this.chainId) {
 			localStorage.setItem(this.chainIdKey, this.chainId);
 		}
+		if (this.session) {
+			localStorage.setItem(this.sessionTopicKey, this.session.topic);
+		}
 	}
 
-	private clearPersistedSession(): void {
+	private clearPersistedSession(keepTopic = false): void {
 		if (!BROWSER) return;
 		localStorage.removeItem(this.sessionOwnerKey);
 		localStorage.removeItem(this.chainIdKey);
+		if (!keepTopic) localStorage.removeItem(this.sessionTopicKey);
 	}
 
 	async connect(): Promise<WalletAccount[]> {
@@ -514,26 +666,11 @@ export class WalletConnectAdapter implements WalletAdapter {
 			return this._accounts;
 		}
 
-		// Only disconnect sessions owned by THIS scope
-		// Check if the current provider session belongs to us
-		if (this.provider.session) {
-			const ownerKey = this.sessionOwnerKey;
-			const storedOwner = localStorage.getItem(ownerKey);
-			if (storedOwner === this.id) {
-				// This scope's session — disconnect it to make a new one
-				try {
-					await this.provider.client?.disconnect({
-						topic: this.provider.session.topic,
-						reason: { code: 6000, message: 'Reconnecting' }
-					});
-				} catch {
-					// Ignore disconnect errors
-				}
-			}
-			// If storedOwner !== this.id, another scope owns the session — leave it alone
-			this.session = null;
-			this._accounts = [];
-		}
+		// Remove stale sessions this adapter owns so a reconnect leaves exactly one.
+		// Sessions owned by other adapters or scopes are left alone.
+		await this.removeOwnedSessions();
+		this.session = null;
+		this._accounts = [];
 
 		// Set up URI display handler (remove first to prevent duplicates)
 		this.provider.off('display_uri', this.handleDisplayUri);
@@ -591,27 +728,27 @@ export class WalletConnectAdapter implements WalletAdapter {
 	}
 
 	async disconnect(): Promise<void> {
+		let removed = true;
 		try {
 			// Disconnect only this specific session by topic
 			if (this.session && this.provider?.client) {
 				try {
-					await this.provider.client.disconnect({
-						topic: this.session.topic,
-						reason: { code: 6000, message: 'User disconnected' }
-					});
-				} catch {
-					// Fallback to provider.disconnect if client.disconnect fails
-					if (this.provider?.session?.topic === this.session.topic) {
-						await this.provider.disconnect();
-					}
+					await this.disconnectTopic(this.session.topic, 'User disconnected');
+				} catch (error) {
+					// Keep the topic recorded so the next connect() retries the removal
+					removed = false;
+					console.warn(`[${this.id}:${this.scopeId}] Failed to disconnect session:`, error);
 				}
 			} else if (this.provider?.session) {
 				await this.provider.disconnect();
 			}
 		} finally {
+			if (!removed && this.session) {
+				localStorage.setItem(this.sessionTopicKey, this.session.topic);
+			}
 			this.session = null;
 			this._accounts = [];
-			this.clearPersistedSession();
+			this.clearPersistedSession(!removed);
 			modalHandlers.get(this.scopeId)?.({ type: 'hide' });
 		}
 	}
@@ -647,10 +784,16 @@ export class WalletConnectAdapter implements WalletAdapter {
 			params: [txnsToSign]
 		};
 
-		const result = await this.provider.request(requestPayload, this.chainId!);
+		// Send on the adapter's own session. provider.request() would use the provider's
+		// session, which after a reload is the oldest stored session, not necessarily ours.
+		const result = await this.provider.client.request<(string | null)[]>({
+			topic: this.session.topic,
+			chainId: this.chainId!,
+			request: requestPayload
+		});
 
 		// Convert results to Uint8Array
-		return (result as (string | null)[]).map((signedTxn) =>
+		return result.map((signedTxn) =>
 			signedTxn ? new Uint8Array(Buffer.from(signedTxn, 'base64')) : new Uint8Array(0)
 		);
 	}
@@ -774,8 +917,8 @@ export class WalletConnectAdapter implements WalletAdapter {
 	async destroy(): Promise<void> {
 		// Remove our event listeners from the shared provider
 		if (this.provider) {
-			this.provider.off('session_delete', this.handleSessionDelete);
-			this.provider.off('session_expire', this.handleSessionExpire);
+			this.provider.client?.off('session_delete', this.handleSessionDelete);
+			this.provider.client?.off('session_expire', this.handleSessionExpire);
 			this.provider.off('display_uri', this.handleDisplayUri);
 		}
 
