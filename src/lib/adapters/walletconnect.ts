@@ -90,7 +90,8 @@ export function onWalletConnectModal(
 
 /**
  * localStorage keys that track which adapter owns which session in the shared SignClient.
- * Each key is suffixed with `<id>` (default scope) or `<scopeId>-<id>`.
+ * Each key is suffixed with `<id>` (default scope) or `<scopeId>-<id>`. A session is an
+ * adapter's only when its topic is recorded under that adapter's topic key.
  */
 const OWNER_PREFIX = 'wc-session-owner-';
 const TOPIC_PREFIX = 'wc-session-topic-';
@@ -102,19 +103,10 @@ const LEGACY_OWNER_IDS: Record<string, string> = {
 	BiatecWallet: 'biatec',
 	WalletConnect: 'walletconnect'
 };
+/** JSON array of topics no adapter could be credited with; never adopted or deleted. */
+const QUARANTINE_KEY = `${TOPIC_PREFIX}unattributed`;
 /** UniversalProvider's per-topic storage prefix. */
 const PROVIDER_STORAGE = 'wc@2:universal_provider:/';
-
-interface SessionOwnership {
-	/** Topic recorded for this adapter, if any. */
-	mine: string | null;
-	/** Topics recorded by other adapters or scopes. */
-	foreign: Set<string>;
-	/** Whether unrecorded sessions can be attributed to this adapter. */
-	claimsUnrecorded: boolean;
-	/** Chains claimed by other adapters or scopes that have no recorded topic. */
-	claimedChains: Set<string>;
-}
 
 /**
  * Module-level singleton for WalletConnect provider.
@@ -214,6 +206,8 @@ export class WalletConnectAdapter implements WalletAdapter {
 	private provider: InstanceType<typeof UniversalProvider> | null = null;
 	private session: WCSession | null = null;
 	private chainId: string | null = null;
+	/** Chain derived from the configured genesis hash; a fresh connect always proposes it. */
+	private configChainId: string | null = null;
 	private _accounts: WalletAccount[] = [];
 	private initialized = false;
 	private initPromise: Promise<void> | null = null;
@@ -288,51 +282,85 @@ export class WalletConnectAdapter implements WalletAdapter {
 		return this.scopeId === 'default' && !!legacy && LEGACY_OWNER_IDS[legacy] === this.id;
 	}
 
-	/**
-	 * Work out which sessions in the shared SignClient this adapter owns.
-	 * - A topic recorded under this adapter's topic key is ours; a topic recorded under any
-	 *   other adapter's topic key is theirs and is never adopted or deleted.
-	 * - Unrecorded sessions (created before topics were recorded) are ours only when this
-	 *   adapter holds an owner claim (its owner key, or the 0.9.x key naming this wallet) and no
-	 *   other adapter on this chain holds an owner claim without a recorded topic. An
-	 *   unrecorded session off this adapter's chain is not ours if it is on a chain that such
-	 *   another claim names.
-	 */
-	private sessionOwnership(): SessionOwnership {
-		const foreign = new Set<string>();
-		const claimedChains = new Set<string>();
-		let contested = false;
-		for (let i = 0; i < localStorage.length; i++) {
-			const key = localStorage.key(i);
-			if (!key) continue;
-			if (key.startsWith(TOPIC_PREFIX) && key !== this.sessionTopicKey) {
-				foreign.add(localStorage.getItem(key) ?? '');
-			} else if (key === LEGACY_OWNER_KEY) {
-				if (!this.legacyOwnerIsSelf()) contested = true;
-			} else if (key.startsWith(OWNER_PREFIX) && key !== this.sessionOwnerKey) {
-				const suffix = key.slice(OWNER_PREFIX.length);
-				const chain = localStorage.getItem(CHAIN_PREFIX + suffix);
-				const recorded = localStorage.getItem(TOPIC_PREFIX + suffix) !== null;
-				if (recorded) continue;
-				if (chain) claimedChains.add(chain);
-				if (!chain || chain === this.chainId) contested = true;
-			}
-		}
-		const claim =
-			localStorage.getItem(this.sessionOwnerKey) === this.id || this.legacyOwnerIsSelf();
-		return {
-			mine: localStorage.getItem(this.sessionTopicKey),
-			foreign,
-			claimsUnrecorded: claim && !contested,
-			claimedChains
-		};
+	private isStored(topic: string): boolean {
+		return this.storedSessions()?.some((s) => s.topic === topic) ?? true;
 	}
 
-	private isOwned(session: WCSession, ownership: SessionOwnership) {
-		if (session.topic === ownership.mine) return true;
-		if (!ownership.claimsUnrecorded || ownership.foreign.has(session.topic)) return false;
-		const chains = session.namespaces?.['algorand']?.chains ?? [];
-		return this.isOnThisChain(session) || !chains.some((c) => ownership.claimedChains.has(c));
+	/** Sessions in the shared SignClient, or null when the store cannot be read. */
+	private storedSessions(): WCSession[] | null {
+		try {
+			return (this.provider?.client?.session?.getAll() ?? []) as WCSession[];
+		} catch {
+			return null;
+		}
+	}
+
+	/** Quarantined topics still stored; the stored list is pruned of the others. */
+	private readQuarantine(stored: Set<string>): string[] {
+		let list: unknown = [];
+		try {
+			list = JSON.parse(localStorage.getItem(QUARANTINE_KEY) ?? '[]');
+		} catch {
+			// A corrupt list quarantines nothing
+		}
+		const kept = Array.isArray(list) ? list.filter((t) => stored.has(t)) : [];
+		if (kept.length > 0) localStorage.setItem(QUARANTINE_KEY, JSON.stringify(kept));
+		else localStorage.removeItem(QUARANTINE_KEY);
+		return kept;
+	}
+
+	/**
+	 * One-time attribution of unrecorded sessions: algorand sessions whose topic no topic key
+	 * records and that are not quarantined (left by versions that did not record topics).
+	 * - A 0.9.x owner key next to any 3.x owner key is stale and is deleted.
+	 * - If exactly one owner claim exists (a 3.x owner key, or the 0.9.x key naming a wallet)
+	 *   and no topic is recorded, that claim's adapter adopts the newest eligible unrecorded
+	 *   session, records it and prunes the other unrecorded sessions.
+	 * - Otherwise nobody can tell whose they are: quarantine them all and adopt none.
+	 */
+	private async attributeUnrecorded(sessions: WCSession[]): Promise<void> {
+		const keys = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i) ?? '');
+		const owners = keys.filter((k) => k.startsWith(OWNER_PREFIX));
+		if (owners.length > 0) localStorage.removeItem(LEGACY_OWNER_KEY);
+		const legacy = !!LEGACY_OWNER_IDS[localStorage.getItem(LEGACY_OWNER_KEY) ?? ''];
+		const recorded = new Set(
+			keys
+				.filter((k) => k.startsWith(TOPIC_PREFIX) && k !== QUARANTINE_KEY)
+				.map((k) => localStorage.getItem(k))
+		);
+		const quarantine = this.readQuarantine(new Set(sessions.map((s) => s.topic)));
+		const unrecorded = sessions.filter(
+			(s) => s.namespaces?.['algorand'] && !recorded.has(s.topic) && !quarantine.includes(s.topic)
+		);
+		if (unrecorded.length === 0) return;
+
+		if (owners.length + (legacy ? 1 : 0) === 1 && recorded.size === 0) {
+			// The sole claim's adapter adopts; every other adapter leaves them to it
+			if (owners[0] !== this.sessionOwnerKey && !(legacy && this.legacyOwnerIsSelf())) return;
+			const eligible = unrecorded.filter(
+				(s) => this.isOnThisChain(s) && s.namespaces['algorand'].methods?.includes('algo_signTxn')
+			);
+			if (eligible.length === 0) return;
+			// Newest: largest expiry, ties go to the last stored
+			const newest = eligible.reduce((best, s) =>
+				(s.expiry ?? 0) >= (best.expiry ?? 0) ? s : best
+			);
+			localStorage.setItem(this.sessionTopicKey, newest.topic);
+			localStorage.setItem(this.sessionOwnerKey, this.id);
+			localStorage.removeItem(LEGACY_OWNER_KEY);
+			for (const s of unrecorded) {
+				if (s !== newest) await this.removeTopic(s.topic, 'Stale session');
+			}
+			return;
+		}
+
+		console.log(
+			`[${this.id}:${this.scopeId}] Quarantining ${unrecorded.length} unattributed sessions`
+		);
+		localStorage.setItem(
+			QUARANTINE_KEY,
+			JSON.stringify([...quarantine, ...unrecorded.map((s) => s.topic)])
+		);
 	}
 
 	private isOnThisChain(session: WCSession): boolean {
@@ -361,7 +389,8 @@ export class WalletConnectAdapter implements WalletAdapter {
 
 		// Compute chain ID from genesis hash
 		const hashPrefix = this.config.genesisHash.substring(0, 32).replace(/\//g, '_');
-		this.chainId = `algorand:${hashPrefix}`;
+		this.configChainId = `algorand:${hashPrefix}`;
+		this.chainId = this.configChainId;
 
 		// Get shared provider singleton (prevents multiple WC Core initializations)
 		this.provider = await getSharedProvider(this.wcConfig);
@@ -489,63 +518,22 @@ export class WalletConnectAdapter implements WalletAdapter {
 	private async tryRestoreSession(): Promise<void> {
 		if (!BROWSER || !this.provider) return;
 
-		// Check for stored session owner (or a 0.9.x owner key naming this wallet)
-		const storedOwner = localStorage.getItem(this.sessionOwnerKey);
-		const legacyOnly = storedOwner === null && this.legacyOwnerIsSelf();
-		if (storedOwner !== this.id && !legacyOnly) {
-			console.log(
-				`[${this.id}:${this.scopeId}] No stored session owner or mismatch: stored=${storedOwner}, expected=${this.id}`
-			);
+		const sessions = this.storedSessions();
+		if (sessions) await this.attributeUnrecorded(sessions);
+
+		// Only the session recorded under this adapter's topic key is ours
+		const mine = localStorage.getItem(this.sessionTopicKey);
+		if (!mine) {
+			console.log(`[${this.id}:${this.scopeId}] No recorded session`);
 			return;
 		}
-
-		// Pick this adapter's session among the stored ones
-		let existingSession: WCSession | null = null;
-		let stale: WCSession[] = [];
-		const ownership = this.sessionOwnership();
-		try {
-			const allSessions = (this.provider.client?.session?.getAll() ?? []) as WCSession[];
-			if (ownership.mine) {
-				// Only the recorded session is ours; if it is gone, forget it and wait for connect()
-				existingSession = allSessions.find((s) => s.topic === ownership.mine) ?? null;
-				if (!existingSession) {
-					console.log(`[${this.id}:${this.scopeId}] Recorded session no longer stored`);
-					this.clearPersistedSession();
-					return;
-				}
-			} else if (!ownership.claimsUnrecorded) {
-				// Another adapter may own the unrecorded sessions: adopt none
-				console.log(`[${this.id}:${this.scopeId}] Session ownership is contested`);
-				return;
-			}
-
-			const owned = allSessions.filter(
-				(s) => s.namespaces?.['algorand'] && this.isOwned(s, ownership)
-			);
-			const eligible = owned.filter(
-				(s) => this.isOnThisChain(s) && s.namespaces['algorand'].methods?.includes('algo_signTxn')
-			);
-
-			// The recorded session, else the newest eligible (largest expiry; ties go to the
-			// last stored), else an owned session on this chain, else on any algorand chain
-			existingSession ??=
-				(eligible.length > 0
-					? eligible.reduce((best, s) => ((s.expiry ?? 0) >= (best.expiry ?? 0) ? s : best))
-					: null) ??
-				owned.find((s) => this.isOnThisChain(s)) ??
-				owned.find((s) =>
-					(s.namespaces['algorand'].chains ?? []).some((c) => c.startsWith('algorand:'))
-				) ??
-				null;
-			stale = eligible.filter((s) => s !== existingSession);
-		} catch {
-			// Fallback to provider.session for older WC versions, if it is ours
-			const session = this.provider.session as WCSession | null;
-			existingSession = session && this.isOwned(session, ownership) ? session : null;
-		}
-
+		const existingSession =
+			(sessions ?? [this.provider.session as WCSession | null]).find((s) => s?.topic === mine) ??
+			null;
 		if (!existingSession) {
-			console.log(`[${this.id}:${this.scopeId}] No existing session found`);
+			// Forget a recorded session that is gone and wait for connect()
+			console.log(`[${this.id}:${this.scopeId}] Recorded session no longer stored`);
+			if (sessions) this.clearPersistedSession();
 			return;
 		}
 
@@ -553,13 +541,13 @@ export class WalletConnectAdapter implements WalletAdapter {
 		const algorandNs = existingSession.namespaces['algorand'];
 		if (!algorandNs) {
 			console.log(`[${this.id}:${this.scopeId}] Session missing algorand namespace`);
-			await this.cleanupInvalidSession(existingSession, ownership);
+			await this.cleanupInvalidSession(existingSession);
 			return;
 		}
 
 		if (!algorandNs.methods?.includes('algo_signTxn')) {
 			console.log(`[${this.id}:${this.scopeId}] Session missing algo_signTxn method`);
-			await this.cleanupInvalidSession(existingSession, ownership);
+			await this.cleanupInvalidSession(existingSession);
 			return;
 		}
 
@@ -580,10 +568,8 @@ export class WalletConnectAdapter implements WalletAdapter {
 		this.session = existingSession;
 		this._accounts = this.extractAccounts(algorandNs.accounts || []);
 
-		// Record the session (owner, chain and topic) and retire a 0.9.x owner key
+		// Record the session (owner, chain and topic)
 		this.persistSession();
-		if (this.legacyOwnerIsSelf()) localStorage.removeItem(LEGACY_OWNER_KEY);
-		await this.removeSessions(stale, 'Stale session');
 	}
 
 	/**
@@ -606,56 +592,32 @@ export class WalletConnectAdapter implements WalletAdapter {
 		}
 	}
 
-	/** Best-effort removal of sessions; failures are logged and skipped. Returns failed topics. */
-	private async removeSessions(sessions: WCSession[], message: string): Promise<Set<string>> {
-		const failed = new Set<string>();
-		for (const session of sessions) {
-			try {
-				console.log(`[${this.id}:${this.scopeId}] Removing session - topic: ${session.topic}`);
-				await this.disconnectTopic(session.topic, message);
-			} catch (error) {
-				failed.add(session.topic);
-				console.warn(
-					`[${this.id}:${this.scopeId}] Failed to remove session ${session.topic}:`,
-					error
-				);
-			}
-		}
-		return failed;
-	}
-
-	/** Remove every stored session this adapter owns, before pairing a new one. */
-	private async removeOwnedSessions(): Promise<void> {
-		const ownership = this.sessionOwnership();
-		const allSessions = (this.provider?.client?.session?.getAll() ?? []) as WCSession[];
-		const owned = allSessions.filter(
-			(s) =>
-				s.topic === ownership.mine ||
-				(s.namespaces?.['algorand'] && this.isOnThisChain(s) && this.isOwned(s, ownership))
-		);
-		const failed = await this.removeSessions(owned, 'Reconnecting');
-		if (this.legacyOwnerIsSelf()) localStorage.removeItem(LEGACY_OWNER_KEY);
-		// Keep the topic recorded while its session is still stored, so a later connect() retries
-		if (!ownership.mine || !failed.has(ownership.mine)) {
-			localStorage.removeItem(this.sessionTopicKey);
+	/** Best-effort removal of a session; true once it is gone from the store. */
+	private async removeTopic(topic: string, message: string): Promise<boolean> {
+		try {
+			console.log(`[${this.id}:${this.scopeId}] Removing session - topic: ${topic}`);
+			await this.disconnectTopic(topic, message);
+			return true;
+		} catch (error) {
+			console.warn(`[${this.id}:${this.scopeId}] Failed to remove session ${topic}:`, error);
+			return !this.isStored(topic);
 		}
 	}
 
 	/**
-	 * Clean up an invalid session. Only a session this adapter owns is removed.
+	 * Remove this adapter's recorded session before pairing a new one. The topic stays
+	 * recorded while the session is still stored, so a later connect() retries.
 	 */
-	private async cleanupInvalidSession(
-		session: WCSession,
-		ownership: SessionOwnership
-	): Promise<void> {
-		try {
-			if (this.provider?.client && this.isOwned(session, ownership)) {
-				await this.disconnectTopic(session.topic, 'Invalid session');
-			}
-		} catch {
-			// Ignore disconnect errors
-		}
-		this.clearPersistedSession();
+	private async removeOwnedSessions(): Promise<void> {
+		const mine = localStorage.getItem(this.sessionTopicKey);
+		if (mine && this.isStored(mine) && !(await this.removeTopic(mine, 'Reconnecting'))) return;
+		localStorage.removeItem(this.sessionTopicKey);
+	}
+
+	/** Remove an invalid recorded session, keeping its topic recorded until the removal took. */
+	private async cleanupInvalidSession(session: WCSession): Promise<void> {
+		const removed = await this.removeTopic(session.topic, 'Invalid session');
+		this.clearPersistedSession(!removed);
 	}
 
 	private extractAccounts(wcAccounts: string[]): WalletAccount[] {
@@ -678,6 +640,7 @@ export class WalletConnectAdapter implements WalletAdapter {
 	}
 
 	private clearPersistedSession(keepTopic = false): void {
+		this.chainId = this.configChainId;
 		if (!BROWSER) return;
 		localStorage.removeItem(this.sessionOwnerKey);
 		localStorage.removeItem(this.chainIdKey);
@@ -700,11 +663,12 @@ export class WalletConnectAdapter implements WalletAdapter {
 			return this._accounts;
 		}
 
-		// Remove stale sessions this adapter owns so a reconnect leaves exactly one.
-		// Sessions owned by other adapters or scopes are left alone.
+		// Remove this adapter's recorded session so a reconnect leaves exactly one.
+		// Sessions recorded by other adapters or scopes, or quarantined, are left alone.
 		await this.removeOwnedSessions();
 		this.session = null;
 		this._accounts = [];
+		this.chainId = this.configChainId;
 
 		// Set up URI display handler (remove first to prevent duplicates)
 		this.provider.off('display_uri', this.handleDisplayUri);
@@ -765,28 +729,27 @@ export class WalletConnectAdapter implements WalletAdapter {
 	}
 
 	async disconnect(): Promise<void> {
-		let removed = true;
-		try {
-			// Disconnect only this adapter's session by topic; without one, only clear our state
-			// (the provider's session may belong to another adapter)
-			if (this.session && this.provider?.client) {
-				try {
-					await this.disconnectTopic(this.session.topic, 'User disconnected');
-				} catch (error) {
-					// Keep the topic recorded so the next connect() retries the removal
-					removed = false;
-					console.warn(`[${this.id}:${this.scopeId}] Failed to disconnect session:`, error);
-				}
-			}
-		} finally {
-			if (!removed && this.session) {
-				localStorage.setItem(this.sessionTopicKey, this.session.topic);
-			}
-			this.session = null;
-			this._accounts = [];
-			this.clearPersistedSession(!removed);
-			modalHandlers.get(this.scopeId)?.({ type: 'hide' });
+		// Before a restore there is no provider yet; initialize so a recorded session is removed
+		if (BROWSER && !this.provider && localStorage.getItem(this.sessionTopicKey)) {
+			await this.ensureInitialized().catch(() => {});
 		}
+
+		// Disconnect only this adapter's session: the restored one, else a recorded one still
+		// stored. Without either, only clear our state (other sessions belong to other adapters).
+		let topic = this.session?.topic ?? null;
+		if (!topic && BROWSER) {
+			const mine = localStorage.getItem(this.sessionTopicKey);
+			if (mine && this.isStored(mine)) topic = mine;
+		}
+		const removed =
+			!topic || !this.provider?.client || (await this.removeTopic(topic, 'User disconnected'));
+
+		// Keep the topic recorded while its session is still stored, so connect() retries
+		if (!removed) localStorage.setItem(this.sessionTopicKey, topic!);
+		this.session = null;
+		this._accounts = [];
+		this.clearPersistedSession(!removed);
+		modalHandlers.get(this.scopeId)?.({ type: 'hide' });
 	}
 
 	isConnected(): boolean {
