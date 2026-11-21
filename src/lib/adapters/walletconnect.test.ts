@@ -330,12 +330,18 @@ describe('WalletConnectAdapter restored sessions', () => {
 		expect(keys.filter((k) => k.endsWith('b'))).toHaveLength(3);
 	});
 
-	it('connect removes a session left by the 0.9.x owner key', async () => {
+	it('reconnect replaces a session left by the 0.9.x owner key', async () => {
 		localStorage.setItem('wc-session-owner', 'VoiWallet');
 		localStorage.setItem('wc-session-owner-biatec', 'biatec');
 		localStorage.setItem('wc-session-topic-biatec', 'biatec');
 		const client = fakeClient([session('legacy', 1000), session('biatec', 1500)]);
 		const adapter = await adapterOn(client);
+		expect(internals(adapter).session.topic).toBe('legacy');
+		// The removal fails offline; the reconnect removes the recorded legacy session.
+		const online = client.disconnect.getMockImplementation()!;
+		client.disconnect.mockRejectedValue(new Error('offline'));
+		await adapter.disconnect().catch(() => {});
+		client.disconnect.mockImplementation(online);
 		client.approveNext(session('fresh', 2000));
 		await adapter.connect();
 		expect(client.topics()).toEqual(['biatec', 'fresh']);
