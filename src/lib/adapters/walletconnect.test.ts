@@ -17,7 +17,12 @@ vi.mock('@walletconnect/universal-provider', async (importOriginal) => {
 	return { ...real, UniversalProvider: TestProvider, default: TestProvider };
 });
 
-import { WalletConnectAdapter, onSessionStateChange } from './walletconnect.js';
+import {
+	WalletConnectAdapter,
+	onSessionStateChange,
+	onWalletConnectModal,
+	type WalletConnectModalEvent
+} from './walletconnect.js';
 
 const genesisHash = 'r20fSQI8gWe/kFZziNonSPCXLwcQmH/nxROvnnueWOk=';
 const chainOf = (hash: string) => `algorand:${hash.substring(0, 32).replace(/\//g, '_')}`;
@@ -660,5 +665,52 @@ describe('WalletConnectAdapter restored sessions', () => {
 		client.request.mockRejectedValueOnce(new Error('Request expired. Please try again.'));
 		await expect(adapter.signTransactions([[payment()]])).rejects.toThrow('Request expired');
 		expect(adapter.isConnected()).toBe(true);
+	});
+});
+
+describe('WalletConnectAdapter pairing URI', () => {
+	const rejectNextPairing = (client: Client) =>
+		client.connect.mockImplementationOnce(async () => ({
+			uri: 'wc:test@2',
+			approval: async () => {
+				throw new Error('Pairing rejected');
+			}
+		}));
+
+	it('shows a later pairing URI only in the scope of the adapter that is connecting', async () => {
+		const seen: Record<string, WalletConnectModalEvent[]> = { a: [], b: [] };
+		const off = ['a', 'b'].map((scope) => onWalletConnectModal((e) => seen[scope].push(e), scope));
+		try {
+			const client = fakeClient([]);
+			const a = await adapterOn(client, 'voiwallet', { scope: 'a' });
+			const b = await adapterOn(client, 'biatec', { scope: 'b' });
+			client.approveNext(session('A', 1000));
+			await a.connect();
+			seen.a = [];
+			client.approveNext(session('B', 2000));
+			await b.connect();
+			expect(seen.a).toEqual([]);
+			expect(seen.b.filter((e) => e.type === 'show')).toEqual([
+				{ type: 'show', uri: 'wc:test@2', walletName: b.name }
+			]);
+		} finally {
+			off.forEach((f) => f());
+		}
+	});
+
+	it('stops showing pairing URIs to an adapter whose connect failed', async () => {
+		const seen: WalletConnectModalEvent[] = [];
+		const off = onWalletConnectModal((e) => seen.push(e), 'a');
+		try {
+			const client = fakeClient([]);
+			const a = await adapterOn(client, 'voiwallet', { scope: 'a' });
+			rejectNextPairing(client);
+			await expect(a.connect()).rejects.toThrow('Pairing rejected');
+			seen.length = 0;
+			internals(a).provider.events.emit('display_uri', 'wc:later@2');
+			expect(seen).toEqual([]);
+		} finally {
+			off();
+		}
 	});
 });

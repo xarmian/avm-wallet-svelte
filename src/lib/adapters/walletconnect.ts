@@ -712,9 +712,11 @@ export class WalletConnectAdapter implements WalletAdapter {
 		this._accounts = [];
 		this.chainId = this.configChainId;
 
-		// Set up URI display handler (remove first to prevent duplicates)
-		this.provider.off('display_uri', this.handleDisplayUri);
-		this.provider.on('display_uri', this.handleDisplayUri);
+		// Show pairing URIs only while this adapter connects: the provider is shared, so a
+		// listener left behind would show another adapter's pairing under this wallet's name
+		const provider = this.provider;
+		provider.off('display_uri', this.handleDisplayUri);
+		provider.on('display_uri', this.handleDisplayUri);
 
 		// Connect with required namespaces
 		const connectParams = {
@@ -732,7 +734,7 @@ export class WalletConnectAdapter implements WalletAdapter {
 		const keepTopic = pending !== null;
 
 		try {
-			const sessionData = await this.provider.connect(connectParams);
+			const sessionData = await provider.connect(connectParams);
 
 			// Hide modal after connection attempt
 			modalHandlers.get(this.scopeId)?.({ type: 'hide' });
@@ -757,6 +759,8 @@ export class WalletConnectAdapter implements WalletAdapter {
 			modalHandlers.get(this.scopeId)?.({ type: 'hide' });
 			this.clearPersistedSession(keepTopic);
 			throw error;
+		} finally {
+			provider.off('display_uri', this.handleDisplayUri);
 		}
 	}
 
