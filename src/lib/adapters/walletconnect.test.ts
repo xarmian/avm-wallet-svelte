@@ -102,7 +102,11 @@ function fakeClient(sessions: FakeSession[]) {
 		off: (e: string, l: (...a: unknown[]) => void) => events.off(e, l),
 		removeListener: (e: string, l: (...a: unknown[]) => void) => events.off(e, l),
 		request: vi.fn(async () => [Buffer.from(payment().signTxn(account.sk)).toString('base64')]),
-		disconnect: vi.fn(async ({ topic }: { topic: string }) => void store.delete(topic)),
+		// Like sign-client, a delete waits on the relay before the session leaves the store
+		disconnect: vi.fn(async ({ topic }: { topic: string }) => {
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			store.delete(topic);
+		}),
 		// Pairing approval: the next connect() settles with the session queued by approveNext().
 		connect: vi.fn(async () => ({
 			uri: 'wc:test@2',
@@ -554,6 +558,10 @@ describe('WalletConnectAdapter restored sessions', () => {
 		// Only the old session may be removed; nothing else is touched
 		expect(deleted(client).every((t) => t === 'old')).toBe(true);
 		expect(client.topics()).toContain('new');
+		// The claimant keeps its record even though the others attributed while it pruned
+		expect(localStorage.getItem('wc-session-owner-voiwallet')).toBe('voiwallet');
+		expect(localStorage.getItem('wc-session-topic-voiwallet')).toBe('new');
+		expect(quarantined().every((t) => t === 'old')).toBe(true);
 	});
 
 	it('quarantines unrecorded sessions when the sole claim has none it can use', async () => {
