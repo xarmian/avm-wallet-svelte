@@ -226,9 +226,12 @@ describe('WalletConnectAdapter restored sessions', () => {
 		localStorage.setItem('wc-session-owner-voiwallet', 'voiwallet');
 		const client = fakeClient([session('stale', 1000)]);
 		const adapter = await adapterOn(client);
-		const offline = new Error('offline');
-		client.disconnect.mockRejectedValueOnce(offline).mockRejectedValueOnce(offline);
+		// Every delete fails while offline; the store keeps the session.
+		const online = client.disconnect.getMockImplementation()!;
+		client.disconnect.mockRejectedValue(new Error('offline'));
 		await adapter.disconnect().catch(() => {});
+		expect(client.topics()).toEqual(['stale']);
+		client.disconnect.mockImplementation(online);
 		client.approveNext(session('fresh', 2000));
 		await adapter.connect();
 		expect(client.topics()).toEqual(['fresh']);
