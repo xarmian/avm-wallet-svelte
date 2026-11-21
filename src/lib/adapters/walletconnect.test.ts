@@ -17,7 +17,12 @@ vi.mock('@walletconnect/universal-provider', async (importOriginal) => {
 	return { ...real, UniversalProvider: TestProvider, default: TestProvider };
 });
 
-import { WalletConnectAdapter, onSessionStateChange } from './walletconnect.js';
+import {
+	WalletConnectAdapter,
+	onSessionStateChange,
+	onWalletConnectModal,
+	type WalletConnectModalEvent
+} from './walletconnect.js';
 
 const genesisHash = 'r20fSQI8gWe/kFZziNonSPCXLwcQmH/nxROvnnueWOk=';
 const chainOf = (hash: string) => `algorand:${hash.substring(0, 32).replace(/\//g, '_')}`;
@@ -660,5 +665,149 @@ describe('WalletConnectAdapter restored sessions', () => {
 		client.request.mockRejectedValueOnce(new Error('Request expired. Please try again.'));
 		await expect(adapter.signTransactions([[payment()]])).rejects.toThrow('Request expired');
 		expect(adapter.isConnected()).toBe(true);
+	});
+});
+
+describe('WalletConnectAdapter pairing URI', () => {
+	const rejectNextPairing = (client: Client) =>
+		client.connect.mockImplementationOnce(async () => ({
+			uri: 'wc:test@2',
+			approval: async () => {
+				throw new Error('Pairing rejected');
+			}
+		}));
+
+	it('shows a later pairing URI only in the scope of the adapter that is connecting', async () => {
+		const seen: Record<string, WalletConnectModalEvent[]> = { a: [], b: [] };
+		const off = ['a', 'b'].map((scope) => onWalletConnectModal((e) => seen[scope].push(e), scope));
+		try {
+			const client = fakeClient([]);
+			const a = await adapterOn(client, 'voiwallet', { scope: 'a' });
+			const b = await adapterOn(client, 'biatec', { scope: 'b' });
+			client.approveNext(session('A', 1000));
+			await a.connect();
+			seen.a = [];
+			client.approveNext(session('B', 2000));
+			await b.connect();
+			expect(seen.a).toEqual([]);
+			expect(seen.b.filter((e) => e.type === 'show')).toEqual([
+				{ type: 'show', uri: 'wc:test@2', walletName: b.name }
+			]);
+		} finally {
+			off.forEach((f) => f());
+		}
+	});
+
+	it('stops showing pairing URIs to an adapter whose connect failed', async () => {
+		const seen: WalletConnectModalEvent[] = [];
+		const off = onWalletConnectModal((e) => seen.push(e), 'a');
+		try {
+			const client = fakeClient([]);
+			const a = await adapterOn(client, 'voiwallet', { scope: 'a' });
+			rejectNextPairing(client);
+			await expect(a.connect()).rejects.toThrow('Pairing rejected');
+			seen.length = 0;
+			internals(a).provider.events.emit('display_uri', 'wc:later@2');
+			expect(seen).toEqual([]);
+		} finally {
+			off();
+		}
+	});
+});
+
+describe('WalletConnectAdapter pending removals', () => {
+	const OWNER = 'wc-session-owner-voiwallet';
+	const TOPIC = 'wc-session-topic-voiwallet';
+	const PENDING = 'wc-session-pending-voiwallet';
+
+	it('restores a recorded session whose owner key is missing and no removal is pending', async () => {
+		localStorage.setItem(TOPIC, 'v');
+		localStorage.setItem('wc-chainId-voiwallet', chain);
+		const client = fakeClient([session('v', 1000)]);
+		const adapter = await adapterOn(client);
+		expect(adapter.isConnected()).toBe(true);
+		expect((await adapter.connect()).map((a) => a.address)).toEqual([account.addr.toString()]);
+		expect(client.disconnect).not.toHaveBeenCalled();
+		expect(client.topics()).toEqual(['v']);
+		expect(localStorage.getItem(OWNER)).toBe('voiwallet');
+		expect(localStorage.getItem(TOPIC)).toBe('v');
+	});
+
+	it('removes a recorded session marked as a pending removal and clears its keys', async () => {
+		localStorage.setItem(TOPIC, 'v');
+		localStorage.setItem(PENDING, 'v');
+		const client = fakeClient([session('v', 1000)]);
+		const adapter = await adapterOn(client);
+		expect(adapter.isConnected()).toBe(false);
+		expect(deleted(client)).toEqual(['v']);
+		expect(client.topics()).toEqual([]);
+		expect(localStorage.getItem(TOPIC)).toBeNull();
+		expect(localStorage.getItem(PENDING)).toBeNull();
+	});
+
+	it('keeps a session another tab records while a pending removal is retried', async () => {
+		localStorage.setItem(TOPIC, 'v');
+		localStorage.setItem(PENDING, 'v');
+		const client = fakeClient([session('v', 1000)]);
+		const remove = client.disconnect.getMockImplementation()!;
+		client.disconnect.mockImplementation(async (args) => {
+			await remove(args);
+			// Another tab connects and records its session while this removal runs
+			localStorage.setItem(TOPIC, 'other');
+			localStorage.setItem(OWNER, 'voiwallet');
+		});
+		await adapterOn(client);
+		expect(deleted(client)).toEqual(['v']);
+		expect(localStorage.getItem(TOPIC)).toBe('other');
+		expect(localStorage.getItem(PENDING)).toBeNull();
+	});
+
+	it.each(['restore', 'connect'] as const)(
+		'a failed disconnect marks its topic pending until a later %s removes it',
+		async (later) => {
+			localStorage.setItem(OWNER, 'voiwallet');
+			const client = fakeClient([session('stale', 1000)]);
+			const adapter = await adapterOn(client);
+			const online = client.disconnect.getMockImplementation()!;
+			client.disconnect.mockRejectedValue(new Error('offline'));
+			await adapter.disconnect();
+			expect(client.topics()).toEqual(['stale']);
+			expect(localStorage.getItem(TOPIC)).toBe('stale');
+			expect(localStorage.getItem(PENDING)).toBe('stale');
+
+			if (later === 'restore') {
+				const next = reloaded(client);
+				const again = await adapterOn(next);
+				expect(again.isConnected()).toBe(false);
+				expect(next.topics()).toEqual([]);
+				expect(localStorage.getItem(TOPIC)).toBeNull();
+			} else {
+				client.disconnect.mockImplementation(online);
+				client.approveNext(session('fresh', 2000));
+				await adapter.connect();
+				expect(client.topics()).toEqual(['fresh']);
+				expect(localStorage.getItem(TOPIC)).toBe('fresh');
+			}
+			expect(localStorage.getItem(PENDING)).toBeNull();
+		}
+	);
+
+	it('an invalid session whose removal failed is marked pending until a connect succeeds', async () => {
+		localStorage.setItem(OWNER, 'voiwallet');
+		localStorage.setItem(TOPIC, 'bad');
+		const bad = session('bad', 1000);
+		bad.namespaces.algorand.methods = [];
+		const client = fakeClient([bad]);
+		client.disconnect.mockRejectedValue(new Error('offline'));
+		const adapter = await adapterOn(client);
+		expect(adapter.isConnected()).toBe(false);
+		expect(localStorage.getItem(TOPIC)).toBe('bad');
+		expect(localStorage.getItem(PENDING)).toBe('bad');
+
+		client.approveNext(session('fresh', 2000));
+		await adapter.connect();
+		expect(localStorage.getItem(TOPIC)).toBe('fresh');
+		expect(localStorage.getItem(OWNER)).toBe('voiwallet');
+		expect(localStorage.getItem(PENDING)).toBeNull();
 	});
 });

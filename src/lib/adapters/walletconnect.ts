@@ -96,6 +96,8 @@ export function onWalletConnectModal(
 const OWNER_PREFIX = 'wc-session-owner-';
 const TOPIC_PREFIX = 'wc-session-topic-';
 const CHAIN_PREFIX = 'wc-chainId-';
+/** Valued with a recorded topic whose removal did not go through and is to be retried. */
+const PENDING_PREFIX = 'wc-session-pending-';
 /** Owner key written by 0.9.x (no scopes), valued with the 0.9.x wallet name. */
 const LEGACY_OWNER_KEY = 'wc-session-owner';
 const LEGACY_OWNER_IDS: Record<string, string> = {
@@ -270,6 +272,13 @@ export class WalletConnectAdapter implements WalletAdapter {
 	 */
 	private get sessionTopicKey(): string {
 		return TOPIC_PREFIX + this.keySuffix;
+	}
+
+	/**
+	 * Get the scoped localStorage key marking the recorded topic as a pending removal.
+	 */
+	private get pendingRemovalKey(): string {
+		return PENDING_PREFIX + this.keySuffix;
 	}
 
 	private get keySuffix(): string {
@@ -559,13 +568,25 @@ export class WalletConnectAdapter implements WalletAdapter {
 			return;
 		}
 		if (localStorage.getItem(this.sessionOwnerKey) !== this.id) {
-			// A topic recorded without an owner key is a session whose removal did not go
-			// through (a disconnect or cleanup while offline): retry it rather than restore it
-			console.log(`[${this.id}:${this.scopeId}] Retrying removal of a disconnected session`);
-			if (!this.isStored(mine) || (await this.removeTopic(mine, 'User disconnected'))) {
-				localStorage.removeItem(this.sessionTopicKey);
+			// A topic marked pending is a session whose removal did not go through (a disconnect
+			// or cleanup while offline): retry it rather than restore it. Without the marker the
+			// owner key was lost (another tab can consume it before it sees the topic key), so
+			// restore below, which writes the owner key back.
+			// A removal left pending by a version without the marker is restored, not removed.
+			if (localStorage.getItem(this.pendingRemovalKey) === mine) {
+				console.log(`[${this.id}:${this.scopeId}] Retrying removal of a disconnected session`);
+				if (!this.isStored(mine) || (await this.removeTopic(mine, 'User disconnected'))) {
+					// Another tab may have recorded a new session during the removal: keep it
+					if (localStorage.getItem(this.sessionTopicKey) === mine) {
+						localStorage.removeItem(this.sessionTopicKey);
+					}
+					if (localStorage.getItem(this.pendingRemovalKey) === mine) {
+						localStorage.removeItem(this.pendingRemovalKey);
+					}
+				}
+				return;
 			}
-			return;
+			console.log(`[${this.id}:${this.scopeId}] Restoring a recorded session without an owner`);
 		}
 		// Read the store again: attribution awaits removals, during which sessions can go
 		const current = this.storedSessions();
@@ -654,6 +675,7 @@ export class WalletConnectAdapter implements WalletAdapter {
 		const mine = localStorage.getItem(this.sessionTopicKey);
 		if (mine && this.isStored(mine) && !(await this.removeTopic(mine, 'Reconnecting'))) return;
 		localStorage.removeItem(this.sessionTopicKey);
+		localStorage.removeItem(this.pendingRemovalKey);
 	}
 
 	/** Remove an invalid recorded session, keeping its topic recorded until the removal took. */
@@ -679,14 +701,26 @@ export class WalletConnectAdapter implements WalletAdapter {
 		if (this.session) {
 			localStorage.setItem(this.sessionTopicKey, this.session.topic);
 		}
+		// A recorded live session is not a pending removal
+		localStorage.removeItem(this.pendingRemovalKey);
 	}
 
+	/**
+	 * Forget this adapter's session. With keepTopic the recorded topic stays, marked as a
+	 * pending removal that a later restore or connect() retries.
+	 */
 	private clearPersistedSession(keepTopic = false): void {
 		this.chainId = this.configChainId;
 		if (!BROWSER) return;
 		localStorage.removeItem(this.sessionOwnerKey);
 		localStorage.removeItem(this.chainIdKey);
-		if (!keepTopic) localStorage.removeItem(this.sessionTopicKey);
+		const topic = localStorage.getItem(this.sessionTopicKey);
+		if (keepTopic && topic !== null) {
+			localStorage.setItem(this.pendingRemovalKey, topic);
+		} else if (!keepTopic) {
+			localStorage.removeItem(this.sessionTopicKey);
+			localStorage.removeItem(this.pendingRemovalKey);
+		}
 	}
 
 	async connect(): Promise<WalletAccount[]> {
@@ -712,9 +746,11 @@ export class WalletConnectAdapter implements WalletAdapter {
 		this._accounts = [];
 		this.chainId = this.configChainId;
 
-		// Set up URI display handler (remove first to prevent duplicates)
-		this.provider.off('display_uri', this.handleDisplayUri);
-		this.provider.on('display_uri', this.handleDisplayUri);
+		// Show pairing URIs only while this adapter connects: the provider is shared, so a
+		// listener left behind would show another adapter's pairing under this wallet's name
+		const provider = this.provider;
+		provider.off('display_uri', this.handleDisplayUri);
+		provider.on('display_uri', this.handleDisplayUri);
 
 		// Connect with required namespaces
 		const connectParams = {
@@ -732,7 +768,7 @@ export class WalletConnectAdapter implements WalletAdapter {
 		const keepTopic = pending !== null;
 
 		try {
-			const sessionData = await this.provider.connect(connectParams);
+			const sessionData = await provider.connect(connectParams);
 
 			// Hide modal after connection attempt
 			modalHandlers.get(this.scopeId)?.({ type: 'hide' });
@@ -757,6 +793,8 @@ export class WalletConnectAdapter implements WalletAdapter {
 			modalHandlers.get(this.scopeId)?.({ type: 'hide' });
 			this.clearPersistedSession(keepTopic);
 			throw error;
+		} finally {
+			provider.off('display_uri', this.handleDisplayUri);
 		}
 	}
 
